@@ -11,7 +11,6 @@ import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.ClientResult;
-import net.derfruhling.discord.socialsdk4j.Lobby;
 import net.derfruhling.discord.socialsdk4j.Relationship;
 import net.derfruhling.discord.socialsdk4j.User;
 import net.derfruhling.minecraft.ubercord.gui.GuildSelectScreen;
@@ -26,8 +25,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -55,8 +52,8 @@ public final class UbercordClient {
 
         NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
-                OpenUbercordGuildLinkScreenPacket.TYPE,
-                OpenUbercordGuildLinkScreenPacket.STREAM_CODEC,
+                OpenGuildLink.TYPE,
+                OpenGuildLink.STREAM_CODEC,
                 UbercordClient::onOpenGuildLinkScreen
         );
 
@@ -79,7 +76,7 @@ public final class UbercordClient {
                 JoinLobby.TYPE,
                 JoinLobby.STREAM_CODEC,
                 (value, context) -> {
-
+                    integration.joinLobby(value.name(), value.secret());
                 }
         );
 
@@ -219,6 +216,19 @@ public final class UbercordClient {
 
                                 return 0;
                             })));
+
+            dispatcher.register(literal("link")
+                    .requires(stack -> stack.hasPermission(2))
+                    .executes(ctx -> {
+                        if (integration.getCurrentChannel() != null) {
+                            long lobbyId = integration.getCurrentChannel().lobbyId();
+                            NetworkManager.sendToServer(new RequestGuildLink(lobbyId));
+                            return 0;
+                        } else {
+                            ctx.getSource().arch$sendFailure(Component.translatable("ubercord.link.no_channel_selected_error"));
+                            return 1;
+                        }
+                    }));
         });
 
         ClientLifecycleEvent.CLIENT_STARTED.register(client -> {
@@ -360,7 +370,7 @@ public final class UbercordClient {
         }
     }
 
-    private static void onOpenGuildLinkScreen(OpenUbercordGuildLinkScreenPacket packet, NetworkManager.PacketContext packetContext) {
+    private static void onOpenGuildLinkScreen(OpenGuildLink packet, NetworkManager.PacketContext packetContext) {
         if(integration.getCurrentChannel() != null) {
             Minecraft.getInstance().setScreen(new GuildSelectScreen());
         } else {

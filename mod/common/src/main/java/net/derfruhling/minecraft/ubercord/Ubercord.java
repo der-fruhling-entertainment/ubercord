@@ -6,7 +6,6 @@ import com.auth0.jwk.JwkProviderBuilder;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.RSAKeyProvider;
 import com.google.gson.Gson;
-import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.NetworkManager;
@@ -14,7 +13,7 @@ import net.derfruhling.minecraft.ubercord.packets.*;
 import net.derfruhling.minecraft.ubercord.server.AuthenticationConfig;
 import net.derfruhling.minecraft.ubercord.server.AuthorizeUserRequest;
 import net.derfruhling.minecraft.ubercord.server.ServerConfig;
-import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,13 +32,14 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public final class Ubercord {
     public static final String MOD_ID = "ubercord";
     private static final Logger log = LogManager.getLogger(Ubercord.class);
 
-    private static @Nullable ServerConfig serverConfig;
+    private static ServerConfig serverConfig;
     private static @Nullable AuthenticationConfig authConfig;
 
     static final JwkProvider jwks = new JwkProviderBuilder("https://maximum-honest-cat.ngrok-free.app/")
@@ -70,7 +70,7 @@ public final class Ubercord {
 
     static final Algorithm rsa = Algorithm.RSA256(key);
 
-    static final HttpClient http = HttpClient.newBuilder()
+    static final HttpClient homeHttp = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER)
             .authenticator(new Authenticator() {
                 @Override
@@ -81,6 +81,10 @@ public final class Ubercord {
                     };
                 }
             })
+            .build();
+
+    static final HttpClient discordHttp = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     public static byte[] decryptSecretText(byte[] text) {
@@ -95,38 +99,61 @@ public final class Ubercord {
     }
 
     public static void init() {
-        LifecycleEvent.SERVER_LEVEL_LOAD.register(level -> {
-            serverConfig = ServerConfig.loadMaybe();
+        LifecycleEvent.SERVER_BEFORE_START.register(server -> {
+            serverConfig = ServerConfig.loadOrDefault(server);
             if(serverConfig != null && serverConfig.authKey() != null) {
                 authConfig = AuthenticationConfig.decode(serverConfig.authKey());
             }
         });
 
-        CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> {
-            dispatcher.register(Commands.literal("link")
-                    .requires(stack -> {
-                        if (!stack.hasPermission(2)) return false;
+        NetworkManager.registerReceiver(
+                NetworkManager.c2s(),
+                RequestGuildLink.TYPE,
+                RequestGuildLink.STREAM_CODEC,
+                (value, context) -> {
+                    if(!context.getPlayer().hasPermissions(2)) return;
 
-                        assert serverConfig != null;
-                        return serverConfig.botToken() != null;
-                    })
-                    .executes(commandContext -> {
-                        ServerPlayer player = commandContext.getSource().getPlayer();
+                    if(serverConfig.botToken() == null) {
+                        context.getPlayer().sendSystemMessage(Component.translatable("ubercord.server.no_bot_token"));
+                        return;
+                    }
 
-                        if(player != null) {
-                            NetworkManager.sendToPlayer(player, OpenUbercordGuildLinkScreenPacket.INSTANCE);
-                            return 0;
-                        } else {
-                            return 1;
-                        }
-                    }));
-        });
+                    context.getPlayer().sendSystemMessage(Component.translatable("ubercord.server.link_start"));
+                    long lobbyId = value.lobbyId();
+                    long userId = ((DiscordIdContainer)context.getPlayer()).getUserId();
+
+                    discordHttp.sendAsync(HttpRequest.newBuilder()
+                            .PUT(HttpRequest.BodyPublishers.ofString("{\"flags\":1}"))
+                            .uri(URI.create(String.format("https://discord.com/api/v10/lobbies/%d/members/%d", lobbyId, userId)))
+                            .header("Authorization", "Bot " + serverConfig.botToken())
+                            .header("User-Agent", "Ubercord (https://github.com/der-fruhling-entertainment/ubercord)")
+                            .header("Content-Type", "application/json")
+                            .build(), HttpResponse.BodyHandlers.ofString())
+                            .handle((response, throwable) -> {
+                                if(throwable != null) {
+                                    context.getPlayer().sendSystemMessage(Component.translatable("ubercord.generic.error", throwable.toString()));
+                                    log.error("Error setting lobby member permission flag", throwable);
+                                } else if(response.statusCode() < 200 || response.statusCode() > 299) {
+                                    context.getPlayer().sendSystemMessage(Component.translatable("ubercord.server.http_error", response.statusCode(), Objects.toString(response.body())));
+                                    log.error("HTTP error setting lobby member permission flag: {} {}", response.statusCode(), response.body());
+                                } else {
+                                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new OpenGuildLink(lobbyId));
+                                }
+
+                                return null;
+                            });
+                }
+        );
 
         NetworkManager.registerReceiver(
                 NetworkManager.c2s(),
                 RequestJoinLobby.TYPE,
                 RequestJoinLobby.STREAM_CODEC,
-                (value, context) -> {}
+                (value, context) -> {
+                    UUID serverId = serverConfig.serverId();
+                    String secret = ChannelSecret.generateServerBasedSecret(serverId, value.lobbyName());
+                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new JoinLobby(value.lobbyName(), secret));
+                }
         );
 
         NetworkManager.registerReceiver(
@@ -165,7 +192,7 @@ public final class Ubercord {
                 BeginProvisionalAuthorizationFlow.STREAM_CODEC,
                 (value, context) -> {
                     // TODO config
-                    http.sendAsync(HttpRequest.newBuilder()
+                    homeHttp.sendAsync(HttpRequest.newBuilder()
                                     .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(new AuthorizeUserRequest(
                                             context.getPlayer().getUUID(),
                                             value.state()
@@ -182,15 +209,15 @@ public final class Ubercord {
 
                                 return null;
                             })
-                            .thenRun(http::close);
+                            .thenRun(homeHttp::close);
                 }
         );
     }
 
     public static void initDedicatedServer() {
         NetworkManager.registerS2CPayloadType(
-                OpenUbercordGuildLinkScreenPacket.TYPE,
-                OpenUbercordGuildLinkScreenPacket.STREAM_CODEC
+                OpenGuildLink.TYPE,
+                OpenGuildLink.STREAM_CODEC
         );
 
         NetworkManager.registerS2CPayloadType(

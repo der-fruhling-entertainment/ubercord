@@ -141,5 +141,8 @@
   "ubercord.auth.selector.title": "To use chat here, select an option below:",
   "ubercord.auth.selector.discord": "[Connect with a Discord account]",
   "ubercord.auth.selector.provisional": "[Just use your Minecraft name]",
-  "ubercord.chat.you": "you"
+  "ubercord.chat.you": "you",
+  "ubercord.server.link_start": "Ensuring the needed permissions are set for linking...",
+  "ubercord.server.no_bot_token": "The server must have a bot token to perform this action (e.g. it cannot be done with the default Ubercord app)",
+  "ubercord.server.http_error": "HTTP error! %d %s"
 }
