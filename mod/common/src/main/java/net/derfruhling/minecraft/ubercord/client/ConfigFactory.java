@@ -98,6 +98,7 @@ public class ConfigFactory {
                 .build());
         builder.add(entryBuilder.startEnumSelector(Component.translatable("ubercord.config.display_mode.type"), Activity.Type.class, mode.type())
                 .setSaveConsumer(newType::set)
+                .setEnumNameProvider(e -> Component.translatable("ubercord.config.display_mode.type." + e.name().toLowerCase()))
                 .build());
         builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.state"), mode.state())
                 .setSaveConsumer(newState::set)

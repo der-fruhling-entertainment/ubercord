@@ -1,10 +1,5 @@
 package net.derfruhling.minecraft.ubercord.client;
 
-import com.auth0.jwk.JwkException;
-import com.auth0.jwk.JwkProvider;
-import com.auth0.jwk.JwkProviderBuilder;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.interfaces.RSAKeyProvider;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
@@ -15,6 +10,7 @@ import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
+import net.derfruhling.discord.socialsdk4j.ClientResult;
 import net.derfruhling.discord.socialsdk4j.Lobby;
 import net.derfruhling.discord.socialsdk4j.Relationship;
 import net.derfruhling.discord.socialsdk4j.User;
@@ -28,13 +24,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
+import org.jetbrains.annotations.Nullable;
 
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.mojang.brigadier.arguments.LongArgumentType.longArg;
@@ -120,9 +114,7 @@ public final class UbercordClient {
                     .then(literal("config")
                             .requires(stack -> clothConfigPresent)
                             .executes(ctx -> {
-                                Minecraft.getInstance().tell(() -> {
-                                    Minecraft.getInstance().setScreen(ConfigFactory.create(null, integration.getConfig()));
-                                });
+                                Minecraft.getInstance().tell(() -> Minecraft.getInstance().setScreen(ConfigFactory.create(null, integration.getConfig())));
                                 return 0;
                             }))
                     .then(literal("authorize")
@@ -258,55 +250,45 @@ public final class UbercordClient {
     private static int onFriendPlayerAction(CommandContext<ClientCommandSourceStack> ctx) throws CommandSyntaxException {
         String playerName = ctx.getArgument("player", String.class);
         integration.sendGameFriendRequest(playerName)
-                .handle((result, throwable) -> {
-                    if(throwable != null) {
-                        ctx.getSource().arch$sendFailure(Component.literal("Failed to send friend request to " + playerName + "; exception: " + throwable));
-                    } else {
-                        if(result.isSuccess()) {
-                            ctx.getSource().arch$sendSuccess(() -> Component.literal("Send friend request to ").append(playerName), false);
-                        } else {
-                            ctx.getSource().arch$sendFailure(Component.literal("Failed to send friend request to " + playerName + ": " + result.message()));
-                        }
-                    }
-
-                    return null;
-                });
+                .handle((result, throwable) -> handleFriendRequestCallback(ctx, result, throwable, playerName));;
 
         return 0;
     }
 
     private static int onFriendDiscordByNameAction(CommandContext<ClientCommandSourceStack> ctx) {
-        String sel = ctx.getArgument("username", String.class);
+        String username = ctx.getArgument("username", String.class);
 
-        integration.getClient().sendDiscordFriendRequest(sel, result -> {
+        integration.getClient().sendDiscordFriendRequest(username, result -> {
             if(result.isSuccess()) {
-                ctx.getSource().arch$sendSuccess(() -> Component.literal("Send Discord friend request to @").append(sel), false);
+                ctx.getSource().arch$sendSuccess(() -> Component.translatable("ubercord.friend.request.successful", "@" + username), false);
             } else {
-                ctx.getSource().arch$sendFailure(Component.literal("Failed to send friend request: " + result.message()));
+                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.friend.request.failed.error", "@" + username, result.message()));
             }
         });
 
         return 0;
     }
 
-    private static int onFriendDiscordPlayerAction(CommandContext<ClientCommandSourceStack> ctx) throws CommandSyntaxException {
+    private static int onFriendDiscordPlayerAction(CommandContext<ClientCommandSourceStack> ctx) {
         String playerName = ctx.getArgument("player", String.class);
         integration.sendDiscordFriendRequest(playerName)
-                .handle((result, throwable) -> {
-                    if(throwable != null) {
-                        ctx.getSource().arch$sendFailure(Component.literal("Failed to send friend request to " + playerName + "; exception: " + throwable));
-                    } else {
-                        if(result.isSuccess()) {
-                            ctx.getSource().arch$sendSuccess(() -> Component.literal("Send friend request to ").append(playerName), false);
-                        } else {
-                            ctx.getSource().arch$sendFailure(Component.literal("Failed to send friend request to " + playerName + ": " + result.message()));
-                        }
-                    }
-
-                    return null;
-                });
+                .handle((result, throwable) -> handleFriendRequestCallback(ctx, result, throwable, playerName));
 
         return 0;
+    }
+
+    private static @Nullable Void handleFriendRequestCallback(CommandContext<ClientCommandSourceStack> ctx, ClientResult result, Throwable throwable, String playerName) {
+        if(throwable != null) {
+            ctx.getSource().arch$sendFailure(Component.translatable("ubercord.friend.request.failed.exception", playerName, throwable.toString()));
+        } else {
+            if(result.isSuccess()) {
+                ctx.getSource().arch$sendSuccess(() -> Component.translatable("ubercord.friend.request.successful", playerName), false);
+            } else {
+                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.friend.request.failed.error", playerName, result.message()));
+            }
+        }
+
+        return null;
     }
 
     private static CompletableFuture<Suggestions> suggestLobbyName(CommandContext<ClientCommandSourceStack> ctx, SuggestionsBuilder builder) {
@@ -323,7 +305,7 @@ public final class UbercordClient {
 
         integration.getClient().sendUserMessage(userId, message, (result, messageId) -> {
             if (!result.isSuccess()) {
-                ctx.getSource().arch$sendFailure(Component.literal("error! ").append(result.message()));
+                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
             }
         });
 
@@ -340,7 +322,7 @@ public final class UbercordClient {
 
         integration.getClient().createOrJoinLobby(name, lobbyMeta, memberMeta, (result, lobbyId) -> {
             if(!result.isSuccess()) {
-                ctx.getSource().arch$sendFailure(Component.literal("Error! ").append(result.message()));
+                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
             }
         });
 
@@ -352,7 +334,7 @@ public final class UbercordClient {
 
         integration.getClient().leaveLobby(integration.getJoinedChannel(name).id, result -> {
             if(!result.isSuccess()) {
-                ctx.getSource().arch$sendFailure(Component.literal("Error! ").append(result.message()));
+                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
             }
         });
 
@@ -369,7 +351,7 @@ public final class UbercordClient {
         Lobby lobby = integration.getJoinedChannel(ctx.getArgument("name", String.class));
 
         if(lobby == null) {
-            ctx.getSource().arch$sendFailure(Component.literal("Error! Lobby not found"));
+            ctx.getSource().arch$sendFailure(Component.translatable("ubercord.lobby.not_found_error"));
             return 1;
         } else {
             ctx.getSource().arch$sendSuccess(() ->
@@ -384,7 +366,7 @@ public final class UbercordClient {
             Minecraft.getInstance().setScreen(new GuildSelectScreen());
         } else {
             assert Minecraft.getInstance().player != null;
-            Minecraft.getInstance().player.sendSystemMessage(Component.literal("You must first select a channel with /channel <name> before you can use /link.").withStyle(ChatFormatting.RED));
+            Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.link.no_channel_selected_error").withStyle(ChatFormatting.RED));
         }
     }
 
