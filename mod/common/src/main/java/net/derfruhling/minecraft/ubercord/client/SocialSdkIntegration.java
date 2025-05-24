@@ -417,16 +417,15 @@ public class SocialSdkIntegration {
     }
 
     public void joinLobby(JoinedChannel.Context ctx, String name) {
+        if(channelHusks.containsKey(name)) {
+            return;
+        }
+
+        channelHusks.put(name, new JoinedChannel.Husk(JoinedChannel.Context.Server, name));
+
         switch (ctx) {
             case Global -> joinLobby(name, ChannelSecret.generateGlobalSecret(name));
-            case Server -> {
-                if(channelHusks.containsKey(name)) {
-                    return;
-                }
-
-                channelHusks.put(name, new JoinedChannel.Husk(JoinedChannel.Context.Server, name));
-                NetworkManager.sendToServer(new RequestJoinLobby(name));
-            }
+            case Server -> NetworkManager.sendToServer(new RequestJoinLobby(name));
         }
     }
 
