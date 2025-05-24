@@ -1,7 +1,7 @@
 package net.derfruhling.discord.socialsdk4j;
 
 /**
- * @apiNote <a href="https://discord.com/developers/docs/social-sdk/namespacediscordpp.html#ae19a5aed498bc40359e4d89d14ffb446">discordpp::ErrorType</a>
+ * <a href="https://discord.com/developers/docs/social-sdk/namespacediscordpp.html#ae19a5aed498bc40359e4d89d14ffb446">discordpp::ErrorType</a>
  */
 public enum ClientResultError {
     None,

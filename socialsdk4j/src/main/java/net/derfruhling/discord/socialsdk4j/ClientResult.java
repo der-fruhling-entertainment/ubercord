@@ -1,7 +1,7 @@
 package net.derfruhling.discord.socialsdk4j;
 
 /**
- * @apiNote <a href="https://discord.com/developers/docs/social-sdk/classdiscordpp_1_1ClientResult.html">discordpp::ClientResult</a>
+ * <a href="https://discord.com/developers/docs/social-sdk/classdiscordpp_1_1ClientResult.html">discordpp::ClientResult</a>
  */
 public class ClientResult {
     private final long pointer;

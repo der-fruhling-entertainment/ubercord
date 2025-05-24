@@ -2,6 +2,8 @@ plugins {
     id 'dev.nokee.jni-library'
     id 'dev.nokee.cpp-language'
     id 'java'
+    id 'maven-publish'
+    id 'org.jreleaser' version '1.18.0'
 }
 
 group = "net.derfruhling.discord"
@@ -13,34 +15,28 @@ library {
     dependencies {
         String os = System.getProperty("os.name").toLowerCase();
         if(os.contains("windows")) {
-            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/discord_partner_sdk.lib")))
+            nativeImplementation(files("discord_social_sdk/lib/release/discord_partner_sdk.lib"))
         } else if (os.contains("linux")) {
-            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.so")))
+            nativeImplementation(files("discord_social_sdk/lib/release/libdiscord_partner_sdk.so"))
         } else if (os.contains("mac")) {
-            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib")))
+            nativeImplementation(files("discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib"))
         } else {
             throw new RuntimeException("Unsupported OS: " + os);
         }
     }
 }
 
-tasks.register("copyDiscordWindows", Copy) {
-    destinationDir = project.layout.buildDirectory.file("libs/main/windows").map { it.asFile }.get()
-    from(new File(project.projectDir, "discord_social_sdk/bin/release/discord_partner_sdk.dll").absoluteFile)
-}
-
-tasks.register("copyDiscordLinux", Copy) {
-    destinationDir = project.layout.buildDirectory.file("libs/main/linux").map { it.asFile }.get()
-    from(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.so").absoluteFile)
-}
-
-tasks.register("copyDiscordMacos", Copy) {
-    destinationDir = project.layout.buildDirectory.file("libs/main/macos").map { it.asFile }.get()
-    from(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib").absoluteFile)
+java {
+    withJavadocJar()
+    withSourcesJar()
 }
 
 repositories {
     mavenCentral()
+}
+
+configurations {
+    artifact
 }
 
 dependencies {
@@ -50,42 +46,96 @@ dependencies {
     compileOnly 'org.jetbrains:annotations:26.0.2'
 }
 
-processResources {
-    String os = System.getProperty("os.name").toLowerCase();
-    if(os.contains("windows")) {
-        dependsOn("sharedLibraryWindows")
-        mustRunAfter("sharedLibraryWindows")
-    } else if (os.contains("linux")) {
-        dependsOn("sharedLibraryLinux")
-        mustRunAfter("sharedLibraryLinux")
-    } else if (os.contains("mac")) {
-        dependsOn("sharedLibraryMacos")
-        mustRunAfter("sharedLibraryMacos")
-    } else {
-        throw new RuntimeException("Unsupported OS: " + os);
+def socialsdk4jJniMacosArtifact = artifacts.add('artifact', layout.buildDirectory.file("libs/main/macos/libsocialsdk4j.dylib")) {
+    builtBy("sharedLibraryMacos")
+}
+
+def socialsdk4jJniLinuxArtifact = artifacts.add('artifact', layout.buildDirectory.file("libs/main/linux/libsocialsdk4j.so")) {
+    builtBy("sharedLibraryLinux")
+}
+
+def socialsdk4jJniWindowsArtifact = artifacts.add('artifact', layout.buildDirectory.file("libs/main/windows/socialsdk4j.dll")) {
+    builtBy("sharedLibraryWindows")
+}
+
+def jarLinuxBinaries = tasks.register("jarLinuxBinaries", Jar) {
+    archiveClassifier = "linux"
+
+    from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
+
+    from("discord_social_sdk/License-Notices.txt") {
+        rename("License-Notices.txt", "LICENSE-DiscordSocialSdk.txt")
     }
 
-    include {
-        def file = null
-        if(os.contains("windows")) {
-            file = project.layout.buildDirectory.file("libs/main/windows/socialsdk4j.dll")
-        } else if (os.contains("linux")) {
-            file = project.layout.buildDirectory.file("libs/main/linux/libsocialsdk4j.so")
-        } else if (os.contains("mac")) {
-            file = project.layout.buildDirectory.file("libs/main/linux/libsocialsdk4j.dylib")
-        } else {
-            throw new RuntimeException("Unsupported OS: " + os);
-        }
+    from("discord_social_sdk/lib/release/libdiscord_partner_sdk.so")
+    from(socialsdk4jJniLinuxArtifact.file)
 
-        from(
-                "discord_social_sdk/bin/release/discord_partner_sdk.dll",
-                "discord_social_sdk/lib/release/libdiscord_partner_sdk.so",
-                "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib",
-                "ci-prebuilt/socialsdk4j.dll",
-                "ci-prebuilt/libsocialsdk4j.so",
-                "ci-prebuilt/libsocialsdk4j.dylib",
-                file
-        )
+    if(System.getProperty("ci") != "yes")
+        dependsOn(socialsdk4jJniLinuxArtifact)
+}
+
+def jarMacosBinaries = tasks.register("jarMacosBinaries", Jar) {
+    archiveClassifier = "macos"
+
+    from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
+
+    from("discord_social_sdk/License-Notices.txt") {
+        rename("License-Notices.txt", "LICENSE-DiscordSocialSdk.txt")
+    }
+
+    from("discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib")
+    from(socialsdk4jJniMacosArtifact.file)
+
+    if(System.getProperty("ci") != "yes")
+        dependsOn(socialsdk4jJniMacosArtifact)
+}
+
+def jarWindowsBinaries = tasks.register("jarWindowsBinaries", Jar) {
+    archiveClassifier = "macos"
+
+    from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
+
+    from("discord_social_sdk/License-Notices.txt") {
+        rename("License-Notices.txt", "LICENSE-DiscordSocialSdk.txt")
+    }
+
+    from("discord_social_sdk/bin/release/libdiscord_partner_sdk.dll")
+    from(socialsdk4jJniWindowsArtifact.file)
+
+    if(System.getProperty("ci") != "yes")
+        dependsOn(socialsdk4jJniWindowsArtifact)
+}
+
+def discordPartnerSdkWindowsArtifact = artifacts.add('artifact', jarWindowsBinaries)
+def discordPartnerSdkLinuxArtifact = artifacts.add('artifact', jarLinuxBinaries)
+def discordPartnerSdkMacosArtifact = artifacts.add('artifact', jarMacosBinaries)
+
+publishing {
+    publications {
+        create("maven", MavenPublication) {
+            groupId = 'net.derfruhling.discord.socialsdk4j'
+            artifactId = 'socialsdk4j'
+
+            artifact(jar)
+
+            artifact(discordPartnerSdkLinuxArtifact) {
+                classifier = "linux"
+            }
+
+            artifact(discordPartnerSdkMacosArtifact) {
+                classifier = "macos"
+            }
+
+            artifact(discordPartnerSdkWindowsArtifact) {
+                classifier = "windows"
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            url = layout.buildDirectory.dir('staging-deploy')
+        }
     }
 }
 

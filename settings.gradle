@@ -4,6 +4,7 @@ pluginManagement {
         maven { url "https://maven.architectury.dev/" }
         maven { url "https://files.minecraftforge.net/maven/" }
         maven { url "https://repo.nokee.dev/release" }
+        maven { url "https://repo.nokee.dev/snapshot" }
         gradlePluginPortal()
     }
 

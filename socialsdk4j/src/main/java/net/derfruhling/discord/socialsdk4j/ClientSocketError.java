@@ -1,7 +1,7 @@
 package net.derfruhling.discord.socialsdk4j;
 
 /**
- * @apiNote <a href="https://discord.com/developers/docs/social-sdk/classdiscordpp_1_1Client.html#ac8d8140b9e1251e59e59a267f8a6295f">discordpp::Client::Error</a>
+ * <a href="https://discord.com/developers/docs/social-sdk/classdiscordpp_1_1Client.html#ac8d8140b9e1251e59e59a267f8a6295f">discordpp::Client::Error</a>
  */
 public enum ClientSocketError {
     None,
