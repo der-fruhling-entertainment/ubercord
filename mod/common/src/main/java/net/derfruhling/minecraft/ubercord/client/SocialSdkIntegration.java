@@ -239,7 +239,7 @@ public class SocialSdkIntegration {
                     Lobby lobby = msg.getLobby();
                     if(lobby == null) return;
 
-                    Relationship relationship = client.getRelationship(msg.getAuthorId());
+                    Relationship relationship = msg.getAuthorId() != self.id ? client.getRelationship(msg.getAuthorId()) : null;
                     OnlinePlayer ign = onlinePlayersById.get(msg.getAuthorId());
                     receiveMessage(lobby.id, ign != null ? ign.username : null, authorName, msg.getAuthorId(), authorBadge, relationship, msg.getContent(), messageId);
                 }
@@ -832,13 +832,7 @@ public class SocialSdkIntegration {
         client.sendLobbyMessage(lobbyId, message, (result, messageId) -> {
             if(Minecraft.getInstance().player == null) return;
 
-            if(result.isSuccess()) {
-                Lobby lobby = client.getLobby(lobbyId);
-                if(lobby != null && lobby.getLinkedChannel() == null) {
-                    String ign = Minecraft.getInstance().getGameProfile().getName();
-                    receiveMessage(lobbyId, ign, self.getDisplayName(), self.id, Badge.ONLINE_USER, null, message, messageId);
-                }
-            } else {
+            if (!result.isSuccess()) {
                 Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.error", result.message()));
             }
         });
