@@ -592,13 +592,14 @@ public class SocialSdkIntegration {
 
     private static void generateChatAuthSelection(long clientId) {
         Minecraft.getInstance().gui.getChat().addMessage(Component
-                .literal("To use chat here, select an option below:\n")
-                .append(Component.literal("[Connect with a Discord account]\n")
+                .translatable("ubercord.auth.selector.title")
+                .append(Component.translatable("ubercord.auth.selector.discord")
                         .withStyle(Style.EMPTY
                                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize discord " + clientId))
                                 .withColor(0x5865F2)
                                 .withUnderlined(true)))
-                .append(Component.literal("[Just use your Minecraft name]")
+                .append("\n")
+                .append(Component.translatable("ubercord.auth.selector.provisional")
                         .withStyle(Style.EMPTY
                                 .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize provisional " + clientId))
                                 .withColor(ChatFormatting.GRAY)
@@ -726,7 +727,7 @@ public class SocialSdkIntegration {
         if(Minecraft.getInstance().player == null) return;
 
         if(currentLobby == null) {
-            Minecraft.getInstance().player.sendSystemMessage(Component.literal("No channel selected. Use /channel <name> to change channels."));
+            Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.no_channel_selected_error"));
         } else if(isReady.get()) {
             reallySendMessage(currentLobby.id, message);
         }
@@ -745,7 +746,7 @@ public class SocialSdkIntegration {
 
         if(joinedChannel == null) {
             if (Minecraft.getInstance().player != null) {
-                Minecraft.getInstance().player.sendSystemMessage(Component.literal("Unknown channel: " + channel).withStyle(ChatFormatting.RED));
+                Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.unknown_channel_error", channel).withStyle(ChatFormatting.RED));
             }
 
             return;
@@ -765,7 +766,7 @@ public class SocialSdkIntegration {
                     receiveMessage(lobbyId, ign, self.getDisplayName(), self.id, Badge.ONLINE_USER, null, message, messageId);
                 }
             } else {
-                Minecraft.getInstance().player.sendSystemMessage(Component.literal("Error! " + result.message()));
+                Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.error", result.message()));
             }
         });
     }
@@ -794,7 +795,11 @@ public class SocialSdkIntegration {
 
         public synchronized void edit(Function<MutableComponent, MutableComponent> editor) {
             if(!hasBeenEdited) {
-                root.append(Component.literal(" (edited)").withStyle(ChatFormatting.DARK_GRAY));
+                root.append(Component.literal(" ")
+                        .append(Component.translatable("ubercord.disclosure.edited"))
+                        .withStyle(Style.EMPTY
+                                .withColor(ChatFormatting.DARK_GRAY)
+                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("ubercord.disclosure.edited.desc")))));
                 hasBeenEdited = true;
             }
 
@@ -810,7 +815,10 @@ public class SocialSdkIntegration {
 
         public void onDeleted() {
             if(hasBeenEdited) root.getSiblings().removeLast();
-            root.append(Component.literal("(deleted)").withStyle(ChatFormatting.DARK_GRAY));
+            root.append(Component.translatable("ubercord.disclosure.deleted")
+                    .withStyle(Style.EMPTY
+                            .withColor(ChatFormatting.DARK_GRAY)
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("ubercord.disclosure.deleted.desc")))));
             root.getSiblings().remove(message);
             Minecraft.getInstance().gui.getChat().rescaleChat();
         }
@@ -831,7 +839,7 @@ public class SocialSdkIntegration {
                 .append("[")
                 .append(sourceBadge.create(sourceIgn, sourceUsername, sourceUserId, relationshipWithSource))
                 .append(" → ")
-                .append("you") // TODO localize
+                .append(Component.translatable("ubercord.chat.you"))
                 .append("] ")
                 .append(msg)
                 .append("  ")
@@ -858,12 +866,11 @@ public class SocialSdkIntegration {
             long targetUserId,
             String message
     ) {
-        // TODO make new chat things
         MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("[")
-                .append("you")
+                .append(Component.translatable("ubercord.chat.you"))
                 .append(" → ")
                 .append(targetBadge.create(targetIgn, targetUsername, targetUserId, relationshipWithTarget))
                 .append("] ")

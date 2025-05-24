@@ -1,6 +1,10 @@
 {
   "ubercord.system": "system",
   "ubercord.disclosure.message_data": "Any messages you send here are also sent to Discord. They may be seen or moderated by people who aren't in-game, especially if there is a channel linked.",
+  "ubercord.disclosure.edited": "(edited)",
+  "ubercord.disclosure.edited.desc": "This message has been edited.",
+  "ubercord.disclosure.deleted": "(deleted)",
+  "ubercord.disclosure.deleted.desc": "This message was deleted.",
   "ubercord.party.join": "Joined channel %s",
   "ubercord.party.leave": "Left channel %s",
   "ubercord.auth.discord.begin": "Authorizing using your Discord account",
@@ -127,9 +131,15 @@
   "ubercord.invite.screen.join_request": "Join request",
   "ubercord.invite.screen.joiner": "%s would like to join your game.",
   "ubercord.link.no_channel_selected_error": "You must first select a channel with /channel <name> before you can use /link.",
+  "ubercord.generic.no_channel_selected_error": "No channel selected. Use /channel <name> to change channels.",
+  "ubercord.generic.unknown_channel_error": "Unknown channel: %s",
   "ubercord.generic.error": "error! %s",
   "ubercord.lobby.not_found_error": "error! Lobby not found!",
   "ubercord.friend.request.failed.exception": "Failed to send friend request to %s; exception: %s",
   "ubercord.friend.request.failed.error": "Failed to send friend request to %s: %s",
-  "ubercord.friend.request.successful": "Sent friend request to %s"
+  "ubercord.friend.request.successful": "Sent friend request to %s",
+  "ubercord.auth.selector.title": "To use chat here, select an option below:",
+  "ubercord.auth.selector.discord": "[Connect with a Discord account]",
+  "ubercord.auth.selector.provisional": "[Just use your Minecraft name]",
+  "ubercord.chat.you": "you"
 }
