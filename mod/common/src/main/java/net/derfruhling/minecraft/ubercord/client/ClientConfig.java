@@ -1,0 +1,68 @@
+package net.derfruhling.minecraft.ubercord.client;
+
+import com.google.gson.Gson;
+import net.derfruhling.discord.socialsdk4j.Activity;
+import net.derfruhling.minecraft.ubercord.DisplayConfig;
+import net.derfruhling.minecraft.ubercord.DisplayMode;
+import net.minecraft.client.Minecraft;
+import org.jetbrains.annotations.Nullable;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+public class ClientConfig {
+    private long defaultClientId = 1367390201621512313L;
+
+    private DisplayMode titleDisplay = new DisplayMode(
+            "Minecraft",
+            Activity.Type.Playing,
+            "On the menu",
+            "Thinking about what to do...",
+            new Activity.Assets(
+                    new Activity.Asset("menu", "In title screen"),
+                    new Activity.Asset("idle", "%player_name%")
+            )
+    );
+
+    private DisplayConfig defaultConfig = DisplayConfig.DEFAULT_CLIENT;
+
+    public ClientConfig(long defaultClientId, DisplayMode titleDisplay, DisplayConfig defaultConfig) {
+        this.defaultClientId = defaultClientId;
+        this.titleDisplay = titleDisplay;
+        this.defaultConfig = defaultConfig;
+    }
+
+    public ClientConfig() {}
+
+    public static ClientConfig loadMaybe() {
+        Path configFile = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("ubercord-client.json");
+        if (!Files.exists(configFile)) {
+            return new ClientConfig();
+        } else {
+            try {
+                return new Gson().fromJson(Files.readString(configFile), ClientConfig.class);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    public void save() throws IOException {
+        Path configDir = Minecraft.getInstance().gameDirectory.toPath().resolve("config");
+        Files.writeString(configDir.resolve("ubercord-client.json"), new Gson().toJson(this), StandardCharsets.UTF_8);
+    }
+
+    public long getDefaultClientId() {
+        return defaultClientId;
+    }
+
+    public DisplayMode getTitleDisplay() {
+        return titleDisplay;
+    }
+
+    public DisplayConfig getDefaultConfig() {
+        return defaultConfig;
+    }
+}

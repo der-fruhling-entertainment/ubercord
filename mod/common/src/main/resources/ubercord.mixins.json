@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "net.derfruhling.minecraft.ubercord.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "client": [
+    "ClientPacketListenerMixin"
+  ],
+  "mixins": [
+    "PlayerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

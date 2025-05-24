@@ -1,0 +1,94 @@
+plugins {
+    id 'dev.nokee.jni-library'
+    id 'dev.nokee.cpp-language'
+    id 'java'
+}
+
+group = "net.derfruhling.discord"
+version = "1.0-SNAPSHOT"
+
+library {
+    targetMachines = [machines.windows.x86_64, machines.macOS, machines.linux.x86_64]
+
+    dependencies {
+        String os = System.getProperty("os.name").toLowerCase();
+        if(os.contains("windows")) {
+            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/discord_partner_sdk.lib")))
+        } else if (os.contains("linux")) {
+            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.so")))
+        } else if (os.contains("mac")) {
+            nativeImplementation(files(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib")))
+        } else {
+            throw new RuntimeException("Unsupported OS: " + os);
+        }
+    }
+}
+
+tasks.register("copyDiscordWindows", Copy) {
+    destinationDir = project.layout.buildDirectory.file("libs/main/windows").map { it.asFile }.get()
+    from(new File(project.projectDir, "discord_social_sdk/bin/release/discord_partner_sdk.dll").absoluteFile)
+}
+
+tasks.register("copyDiscordLinux", Copy) {
+    destinationDir = project.layout.buildDirectory.file("libs/main/linux").map { it.asFile }.get()
+    from(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.so").absoluteFile)
+}
+
+tasks.register("copyDiscordMacos", Copy) {
+    destinationDir = project.layout.buildDirectory.file("libs/main/macos").map { it.asFile }.get()
+    from(new File(project.projectDir, "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib").absoluteFile)
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform('org.apache.logging.log4j:log4j-bom:2.24.3')
+    implementation 'org.apache.logging.log4j:log4j-api'
+    implementation 'org.apache.logging.log4j:log4j-core'
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+}
+
+processResources {
+    String os = System.getProperty("os.name").toLowerCase();
+    if(os.contains("windows")) {
+        dependsOn("sharedLibraryWindows")
+        mustRunAfter("sharedLibraryWindows")
+    } else if (os.contains("linux")) {
+        dependsOn("sharedLibraryLinux")
+        mustRunAfter("sharedLibraryLinux")
+    } else if (os.contains("mac")) {
+        dependsOn("sharedLibraryMacos")
+        mustRunAfter("sharedLibraryMacos")
+    } else {
+        throw new RuntimeException("Unsupported OS: " + os);
+    }
+
+    include {
+        def file = null
+        if(os.contains("windows")) {
+            file = project.layout.buildDirectory.file("libs/main/windows/socialsdk4j.dll")
+        } else if (os.contains("linux")) {
+            file = project.layout.buildDirectory.file("libs/main/linux/libsocialsdk4j.so")
+        } else if (os.contains("mac")) {
+            file = project.layout.buildDirectory.file("libs/main/linux/libsocialsdk4j.dylib")
+        } else {
+            throw new RuntimeException("Unsupported OS: " + os);
+        }
+
+        from(
+                "discord_social_sdk/bin/release/discord_partner_sdk.dll",
+                "discord_social_sdk/lib/release/libdiscord_partner_sdk.so",
+                "discord_social_sdk/lib/release/libdiscord_partner_sdk.dylib",
+                "ci-prebuilt/socialsdk4j.dll",
+                "ci-prebuilt/libsocialsdk4j.so",
+                "ci-prebuilt/libsocialsdk4j.dylib",
+                file
+        )
+    }
+}
+
+tasks.test {
+    useJUnitPlatform()
+}

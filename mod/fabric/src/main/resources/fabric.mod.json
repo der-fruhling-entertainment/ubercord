@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "ubercord",
+  "version": "${version}",
+  "name": "ubercord",
+  "description": "",
+  "authors": [
+    ""
+  ],
+  "contact": {
+    "homepage": ""
+  },
+  "license": "BSD-3-Clause",
+  "icon": "assets/ubercord/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.derfruhling.minecraft.ubercord.fabric.UbercordFabric"
+    ],
+    "client": [
+      "net.derfruhling.minecraft.ubercord.fabric.client.UbercordFabricClient"
+    ],
+    "server": [
+      "net.derfruhling.minecraft.ubercord.fabric.server.UbercordFabricServer"
+    ]
+  },
+  "mixins": [
+    "ubercord.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "architectury": ">=13.0.8",
+    "fabric-api": "*"
+  },
+  "recommends": {
+    "cloth-config": ">=15"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}

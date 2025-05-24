@@ -1,0 +1,25 @@
+pluginManagement {
+    repositories {
+        maven { url "https://maven.fabricmc.net/" }
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://files.minecraftforge.net/maven/" }
+        maven { url "https://repo.nokee.dev/release" }
+        gradlePluginPortal()
+    }
+
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id.startsWith("dev.nokee.")) {
+                useModule("${requested.id.id}:${requested.id.id}.gradle.plugin:0.4.0")
+            }
+        }
+    }
+}
+
+rootProject.name = 'ubercord'
+
+include 'mod'
+include 'mod:common'
+include 'mod:fabric'
+include 'mod:neoforge'
+include 'socialsdk4j'
