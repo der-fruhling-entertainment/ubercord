@@ -16,7 +16,6 @@ import net.derfruhling.minecraft.ubercord.server.AuthorizeUserRequest;
 import net.derfruhling.minecraft.ubercord.server.ServerConfig;
 import net.minecraft.commands.Commands;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
@@ -104,22 +103,29 @@ public final class Ubercord {
         });
 
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> {
-            dispatcher.register(Commands.literal("link").executes(commandContext -> {
-                ServerPlayer player = commandContext.getSource().getPlayer();
+            dispatcher.register(Commands.literal("link")
+                    .requires(stack -> {
+                        if (!stack.hasPermission(2)) return false;
 
-                if(player != null) {
-                    NetworkManager.sendToPlayer(player, OpenUbercordGuildLinkScreenPacket.INSTANCE);
-                    return 0;
-                } else {
-                    return 1;
-                }
-            }));
+                        assert serverConfig != null;
+                        return serverConfig.botToken() != null;
+                    })
+                    .executes(commandContext -> {
+                        ServerPlayer player = commandContext.getSource().getPlayer();
+
+                        if(player != null) {
+                            NetworkManager.sendToPlayer(player, OpenUbercordGuildLinkScreenPacket.INSTANCE);
+                            return 0;
+                        } else {
+                            return 1;
+                        }
+                    }));
         });
 
         NetworkManager.registerReceiver(
                 NetworkManager.c2s(),
-                LobbyJoinedPacket.TYPE,
-                LobbyJoinedPacket.STREAM_CODEC,
+                RequestJoinLobby.TYPE,
+                RequestJoinLobby.STREAM_CODEC,
                 (value, context) -> {}
         );
 
@@ -188,8 +194,8 @@ public final class Ubercord {
         );
 
         NetworkManager.registerS2CPayloadType(
-                JoinLobbyPacket.TYPE,
-                JoinLobbyPacket.STREAM_CODEC
+                JoinLobby.TYPE,
+                JoinLobby.STREAM_CODEC
         );
 
         NetworkManager.registerS2CPayloadType(

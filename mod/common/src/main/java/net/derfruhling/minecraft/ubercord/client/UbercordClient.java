@@ -42,7 +42,6 @@ public final class UbercordClient {
 
     public static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("ubercord", "font");
 
-
     public static SocialSdkIntegration get() {
         return integration;
     }
@@ -75,6 +74,15 @@ public final class UbercordClient {
                 (value, context) -> integration.updatePlayer(value)
         );
 
+        NetworkManager.registerReceiver(
+                NetworkManager.s2c(),
+                JoinLobby.TYPE,
+                JoinLobby.STREAM_CODEC,
+                (value, context) -> {
+
+                }
+        );
+
         /*NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
                 DeclareServerConfig.TYPE,
@@ -97,6 +105,9 @@ public final class UbercordClient {
             dispatcher.register(literal("channel")
                     .requires(stack -> integration.isChatFeaturesEnabled())
                     .then(literal("join")
+                            .then(literal("global")
+                                    .then(argument("name", word())
+                                            .executes(UbercordClient::onGlobalJoinAction)))
                             .then(argument("name", word())
                                     .executes(UbercordClient::onJoinAction)))
                     .then(literal("leave")
@@ -314,49 +325,37 @@ public final class UbercordClient {
 
     private static int onJoinAction(CommandContext<ClientCommandSourceStack> ctx) {
         String name = ctx.getArgument("name", String.class);
+        integration.joinLobby(JoinedChannel.Context.Server, name);
+        return 0;
+    }
 
-        Map<String, String> lobbyMeta = new HashMap<>(), memberMeta = new HashMap<>();
-        lobbyMeta.put("channel-name", name);
-        memberMeta.put("id", ctx.getSource().arch$getPlayer().getStringUUID());
-        memberMeta.put("name", ctx.getSource().arch$getPlayer().getName().getString());
-
-        integration.getClient().createOrJoinLobby(name, lobbyMeta, memberMeta, (result, lobbyId) -> {
-            if(!result.isSuccess()) {
-                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
-            }
-        });
-
+    private static int onGlobalJoinAction(CommandContext<ClientCommandSourceStack> ctx) {
+        String name = ctx.getArgument("name", String.class);
+        integration.joinLobby(JoinedChannel.Context.Global, name);
         return 0;
     }
 
     private static int onLeaveAction(CommandContext<ClientCommandSourceStack> ctx) {
         String name = ctx.getArgument("name", String.class);
-
-        integration.getClient().leaveLobby(integration.getJoinedChannel(name).id, result -> {
-            if(!result.isSuccess()) {
-                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
-            }
-        });
-
+        integration.leaveLobby(name);
         return 0;
     }
 
     private static int onSwitchAction(CommandContext<ClientCommandSourceStack> ctx) {
         integration.setChannel(ctx.getArgument("name", String.class));
-
         return 0;
     }
 
     private static int onGetIdAction(CommandContext<ClientCommandSourceStack> ctx) {
-        Lobby lobby = integration.getJoinedChannel(ctx.getArgument("name", String.class));
+        JoinedChannel lobby = integration.getJoinedChannel(ctx.getArgument("name", String.class));
 
         if(lobby == null) {
             ctx.getSource().arch$sendFailure(Component.translatable("ubercord.lobby.not_found_error"));
             return 1;
         } else {
             ctx.getSource().arch$sendSuccess(() ->
-                    Component.literal(Long.toString(lobby.id))
-                            .withStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, Long.toString(lobby.id)))), false);
+                    Component.literal(Long.toString(lobby.lobbyId()))
+                            .withStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, Long.toString(lobby.lobbyId())))), false);
             return 0;
         }
     }

@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.*;
+import net.derfruhling.minecraft.ubercord.ChannelSecret;
 import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.derfruhling.minecraft.ubercord.JoinSecret;
@@ -13,6 +14,7 @@ import net.derfruhling.minecraft.ubercord.gui.SuddenInviteScreen;
 import net.derfruhling.minecraft.ubercord.gui.SuddenJoinRequestScreen;
 import net.derfruhling.minecraft.ubercord.packets.BeginProvisionalAuthorizationFlow;
 import net.derfruhling.minecraft.ubercord.packets.NotifyAboutUserId;
+import net.derfruhling.minecraft.ubercord.packets.RequestJoinLobby;
 import net.derfruhling.minecraft.ubercord.packets.SetUserIdPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.GuiMessageTag;
@@ -29,6 +31,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.protocol.common.ClientboundTransferPacket;
+import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Contract;
@@ -61,8 +64,9 @@ public class SocialSdkIntegration {
     
     private final Client client = new Client();
 
-    private @Nullable Lobby currentLobby = null;
-    private Map<String, Lobby> knownLobbies = new HashMap<>();
+    private @Nullable JoinedChannel currentChannel = null;
+    private Map<String, JoinedChannel> knownChannels = new HashMap<>();
+    private Map<String, JoinedChannel.Husk> channelHusks = new HashMap<>();
     public User self;
     private ClientConfig config = ClientConfig.loadMaybe();
     private final VolatileClientConfig userPrefs = VolatileClientConfig.loadMaybe();
@@ -128,11 +132,7 @@ public class SocialSdkIntegration {
 
         client.setLobbyCreatedCallback(lobbyId -> {
             if(!chatFeaturesEnabled) {
-                client.leaveLobby(lobbyId, result -> {
-                    if(!result.isSuccess()) {
-                        log.error("Failed to leave lobby {}: {}", lobbyId, result.message());
-                    }
-                });
+                leaveLobby(lobbyId);
                 return;
             }
 
@@ -141,12 +141,24 @@ public class SocialSdkIntegration {
             if(lobby != null) {
                 var meta = lobby.getMetadata();
 
-                if(meta.containsKey("channel-name")) {
-                    synchronized (this) {
-                        knownLobbies.put(meta.get("channel-name"), lobby);
+                String secret = meta.get("secret");
+                String name = meta.get("channel-name");
 
-                        if((currentLobby == null && userPrefs.preferredChannel == null) || (userPrefs.preferredChannel != null && userPrefs.preferredChannel.equals(meta.get("channel-name")))) {
-                            currentLobby = lobby;
+                if(name != null) {
+                    synchronized (this) {
+                        JoinedChannel.Husk husk;
+                        if(!channelHusks.containsKey(name)) {
+                            leaveLobby(lobbyId);
+                            return;
+                        } else {
+                            husk = channelHusks.remove(name);
+                        }
+
+                        JoinedChannel ch = new JoinedChannel(husk, secret, lobbyId, lobby);
+                        knownChannels.put(meta.get("channel-name"), ch);
+
+                        if((currentChannel == null && userPrefs.preferredChannel == null) || (userPrefs.preferredChannel != null && userPrefs.preferredChannel.equals(meta.get("channel-name")))) {
+                            currentChannel = ch;
 
                             Minecraft.getInstance().execute(() -> {
                                 String partyName = meta.get("channel-name");
@@ -171,9 +183,9 @@ public class SocialSdkIntegration {
         client.setLobbyDeletedCallback(lobbyId -> {
             synchronized (this) {
                 //noinspection unchecked
-                for (Map.Entry<String, Lobby> lobby : knownLobbies.entrySet().toArray(Map.Entry[]::new)) {
+                for (Map.Entry<String, Lobby> lobby : knownChannels.entrySet().toArray(Map.Entry[]::new)) {
                     if(lobby.getValue().id == lobbyId) {
-                        knownLobbies.remove(lobby.getKey());
+                        knownChannels.remove(lobby.getKey());
 
                         Minecraft.getInstance().execute(() -> {
                             generatePartyLeaveMessage(lobby.getKey());
@@ -379,6 +391,68 @@ public class SocialSdkIntegration {
         });
     }
 
+    private void leaveLobby(long lobbyId) {
+        Lobby lobby = client.getLobby(lobbyId);
+        if(lobby == null) return;
+
+        Map<String, String> meta = lobby.getMetadata();
+        String name = meta.get("channel-name");
+
+        client.leaveLobby(lobbyId, result -> {
+            if(!result.isSuccess()) {
+                log.error("Failed to leave lobby {}: {}", lobbyId, result.message());
+            } else {
+                knownChannels.remove(name);
+                channelHusks.remove(name);
+
+                if(currentChannel != null && currentChannel.lobbyId() == lobby.id) {
+                    currentChannel = knownChannels.values().stream().findFirst().orElse(null);
+                }
+            }
+        });
+    }
+
+    public void leaveLobby(String name) {
+        leaveLobby(Objects.requireNonNull(getJoinedChannel(name)).lobbyId());
+    }
+
+    public void joinLobby(JoinedChannel.Context ctx, String name) {
+        switch (ctx) {
+            case Global -> joinLobby(name, ChannelSecret.generateGlobalSecret(name));
+            case Server -> {
+                if(channelHusks.containsKey(name)) {
+                    return;
+                }
+
+                channelHusks.put(name, new JoinedChannel.Husk(JoinedChannel.Context.Server, name));
+                NetworkManager.sendToServer(new RequestJoinLobby(name));
+            }
+        }
+    }
+
+    public void joinLobby(String name, String secret) {
+        Player player = Minecraft.getInstance().player;
+        if(player == null) return;
+
+        Map<String, String> lobbyMeta = new HashMap<>(), memberMeta = new HashMap<>();
+        lobbyMeta.put("channel-name", name);
+        lobbyMeta.put("secret", secret);
+        memberMeta.put("id", player.getStringUUID());
+        memberMeta.put("name", player.getName().getString());
+
+        client.createOrJoinLobby(secret, lobbyMeta, memberMeta, (result, lobbyId) -> {
+            if(!result.isSuccess()) {
+                generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.generic.error", result.message()));
+            }
+        });
+    }
+
+    public void leaveServer() {
+        channelHusks.clear();
+        knownChannels.forEach((s, joinedChannel) -> leaveLobby(joinedChannel.lobbyId()));
+        currentChannel = null;
+    }
+
     public static void connectWithJoinSecret(String joinSecret) {
         JoinSecret secret = JoinSecret.decode(joinSecret);
         log.info("Joining {}'s game: {}:{}", secret.inviter(), secret.ip(), secret.port());
@@ -410,8 +484,8 @@ public class SocialSdkIntegration {
 
     public void disconnect() {
         synchronized (this) {
-            knownLobbies.clear();
-            currentLobby = null;
+            knownChannels.clear();
+            currentChannel = null;
         }
 
         client.disconnect();
@@ -472,23 +546,23 @@ public class SocialSdkIntegration {
         connectWithClientId(defaultClientId, defaultClientId != BUILTIN_CLIENT_ID || ENABLE_CHAT_FEATURES_ON_DEFAULT_CLIENT);
     }
 
-    public Iterable<Map.Entry<String, Lobby>> getJoinedChannels() {
-        return knownLobbies.entrySet();
+    public Iterable<Map.Entry<String, JoinedChannel>> getJoinedChannels() {
+        return knownChannels.entrySet();
     }
 
-    public Lobby getJoinedChannel(String name) {
-        return knownLobbies.get(name);
+    public @Nullable JoinedChannel getJoinedChannel(String name) {
+        return knownChannels.get(name);
     }
 
-    public @Nullable Lobby getCurrentChannel() {
-        return currentLobby;
+    public @Nullable JoinedChannel getCurrentChannel() {
+        return currentChannel;
     }
 
-    private void setChannel(Lobby lobby) {
-        currentLobby = lobby;
+    private void setChannel(JoinedChannel ch) {
+        currentChannel = ch;
 
         Minecraft.getInstance().execute(() -> {
-            Map<String, String> meta = lobby.getMetadata();
+            Map<String, String> meta = ch.lobby().getMetadata();
             generateChannelSwitchMessage(meta.get("channel-name"));
 
             if(Minecraft.getInstance().screen instanceof DiesOnChannelChange) {
@@ -525,7 +599,7 @@ public class SocialSdkIntegration {
     public synchronized void connectWithClientId(long clientId, boolean chatFeaturesEnabled) {
         if(currentClientId == clientId) return;
 
-        knownLobbies.clear();
+        knownChannels.clear();
 
         File cacheDir = new File(Minecraft.getInstance().gameDirectory, "ubercord");
         File cacheFile = new File(cacheDir, "social-sdk-" + clientId + ".json");
@@ -726,10 +800,10 @@ public class SocialSdkIntegration {
     public void sendMessage(String message) {
         if(Minecraft.getInstance().player == null) return;
 
-        if(currentLobby == null) {
+        if(currentChannel == null) {
             Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.no_channel_selected_error"));
         } else if(isReady.get()) {
-            reallySendMessage(currentLobby.id, message);
+            reallySendMessage(currentChannel.lobbyId(), message);
         }
     }
 
@@ -742,9 +816,9 @@ public class SocialSdkIntegration {
     }
 
     public void sendMessage(String channel, String message) {
-        Lobby joinedChannel = getJoinedChannel(channel);
+        JoinedChannel ch = getJoinedChannel(channel);
 
-        if(joinedChannel == null) {
+        if(ch == null) {
             if (Minecraft.getInstance().player != null) {
                 Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.unknown_channel_error", channel).withStyle(ChatFormatting.RED));
             }
@@ -752,7 +826,7 @@ public class SocialSdkIntegration {
             return;
         }
 
-        sendMessage(joinedChannel.id, message);
+        sendMessage(ch.lobbyId(), message);
     }
 
     private void reallySendMessage(long lobbyId, String message) {
@@ -772,7 +846,7 @@ public class SocialSdkIntegration {
     }
 
     private void receiveMessage(long lobbyId, @Nullable String ign, String username, long userId, Badge badge, @Nullable Relationship relationshipWithSource, String message, long messageId) {
-        if(currentLobby != null && currentLobby.id == lobbyId) {
+        if(currentChannel != null && currentChannel.lobbyId() == lobbyId) {
             generateMainLobbyMessage(messageId, ign, username, badge, relationshipWithSource, userId, message);
         } else {
             Lobby lobby = client.getLobby(lobbyId);

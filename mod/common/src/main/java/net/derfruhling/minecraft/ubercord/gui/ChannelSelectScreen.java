@@ -9,6 +9,7 @@ import dev.lambdaurora.spruceui.widget.SpruceLabelWidget;
 import dev.lambdaurora.spruceui.widget.container.SpruceEntryListWidget;
 import net.derfruhling.discord.socialsdk4j.GuildChannel;
 import net.derfruhling.discord.socialsdk4j.Lobby;
+import net.derfruhling.minecraft.ubercord.client.JoinedChannel;
 import net.derfruhling.minecraft.ubercord.client.UbercordClient;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -92,9 +93,9 @@ public class ChannelSelectScreen extends SpruceScreen implements DiesOnChannelCh
         }));
 
         selectButton = new SpruceButtonWidget(Position.of(width - 64, height - 24), 60, 20, Component.literal("Select >>"), (button) -> {
-            Lobby lobby = Objects.requireNonNull(UbercordClient.get().getCurrentChannel());
+            JoinedChannel lobby = Objects.requireNonNull(UbercordClient.get().getCurrentChannel());
 
-            UbercordClient.get().getClient().linkChannelToLobby(lobby.id, channelId, result -> {
+            UbercordClient.get().getClient().linkChannelToLobby(lobby.lobbyId(), channelId, result -> {
                 if(Minecraft.getInstance().player == null) return;
 
                 if(result.isSuccess()) {
