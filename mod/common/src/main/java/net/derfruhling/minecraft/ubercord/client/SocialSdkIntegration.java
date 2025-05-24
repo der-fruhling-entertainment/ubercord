@@ -35,6 +35,7 @@ import net.minecraft.world.entity.player.Player;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Contract;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -557,7 +558,7 @@ public class SocialSdkIntegration {
         return currentChannel;
     }
 
-    private void setChannel(JoinedChannel ch) {
+    private void setChannel(@NotNull JoinedChannel ch) {
         currentChannel = ch;
 
         Minecraft.getInstance().execute(() -> {
@@ -571,7 +572,13 @@ public class SocialSdkIntegration {
     }
 
     public void setChannel(String channel) {
-        setChannel(getJoinedChannel(channel));
+        JoinedChannel ch = getJoinedChannel(channel);
+
+        if(ch == null) {
+            joinLobby(JoinedChannel.Context.Server, channel);
+        } else {
+            setChannel(ch);
+        }
 
         synchronized (this) {
             try {
