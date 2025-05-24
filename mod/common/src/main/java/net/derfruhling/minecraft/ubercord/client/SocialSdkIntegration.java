@@ -183,8 +183,8 @@ public class SocialSdkIntegration {
         client.setLobbyDeletedCallback(lobbyId -> {
             synchronized (this) {
                 //noinspection unchecked
-                for (Map.Entry<String, Lobby> lobby : knownChannels.entrySet().toArray(Map.Entry[]::new)) {
-                    if(lobby.getValue().id == lobbyId) {
+                for (Map.Entry<String, JoinedChannel> lobby : knownChannels.entrySet().toArray(Map.Entry[]::new)) {
+                    if(lobby.getValue().lobbyId() == lobbyId) {
                         knownChannels.remove(lobby.getKey());
 
                         Minecraft.getInstance().execute(() -> {
