@@ -4,6 +4,7 @@ import com.google.common.io.ByteStreams;
 import net.derfruhling.minecraft.ubercord.Ubercord;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -29,7 +30,7 @@ public record AuthenticationConfig(
         CompoundTag tag;
 
         try {
-            tag = CompoundTag.TYPE.load(ByteStreams.newDataInput(decoded), NbtAccounter.unlimitedHeap());
+            tag = NbtIo.read(ByteStreams.newDataInput(decoded));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

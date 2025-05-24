@@ -80,15 +80,18 @@ public final class UbercordClient {
                 }
         );
 
-        /*NetworkManager.registerReceiver(
+        NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
                 DeclareServerConfig.TYPE,
                 DeclareServerConfig.STREAM_CODEC,
                 (value, context) -> {
-                    integration.connectWithClientId(value.clientId(), value.clientId() != SocialSdkIntegration.BUILTIN_CLIENT_ID || SocialSdkIntegration.ENABLE_CHAT_FEATURES_ON_DEFAULT_CLIENT);
+                    if(value.config() != null) {
+                        integration.setDisplayConfig(value.config());
+                    }
+
                     updatePlayingRichPresence();
                 }
-        );*/
+        );
 
         ClientCommandRegistrationEvent.EVENT.register((dispatcher, context) -> {
             var dm = argument("user", new DiscordUserArgument())
@@ -119,6 +122,15 @@ public final class UbercordClient {
                             .executes(UbercordClient::onSwitchAction)));
 
             dispatcher.register(literal("chatctl")
+                    .executes(ctx -> {
+                        integration.getClient().openConnectedGameSettingsInDiscord(result -> {
+                            if(!result.isSuccess()) {
+                                ctx.getSource().arch$sendFailure(Component.translatable("ubercord.discord.connected_game_settings.failed").withStyle(ChatFormatting.RED));
+                            }
+                        });
+
+                        return 0;
+                    })
                     .then(literal("config")
                             .requires(stack -> clothConfigPresent)
                             .executes(ctx -> {
@@ -243,7 +255,10 @@ public final class UbercordClient {
 
             updatePlayingRichPresence();
         });
-        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> integration.updateRichPresenceOnTitleScreen());
+        ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            integration.leaveServer();
+            integration.updateRichPresenceOnTitleScreen();
+        });
 
         AtomicInteger ticks = new AtomicInteger(0);
         ClientTickEvent.CLIENT_POST.register(client -> {

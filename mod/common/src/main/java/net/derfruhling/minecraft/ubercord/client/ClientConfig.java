@@ -21,8 +21,8 @@ public class ClientConfig {
             "On the menu",
             "Thinking about what to do...",
             new Activity.Assets(
-                    new Activity.Asset("menu", "In title screen"),
-                    new Activity.Asset("idle", "%player_name%")
+                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new Activity.Asset("idle", "Waiting for something to happen?")
             )
     );
 
@@ -63,6 +63,6 @@ public class ClientConfig {
     }
 
     public DisplayConfig getDefaultConfig() {
-        return defaultConfig;
+        return defaultConfig == null ? DisplayConfig.DEFAULT_CLIENT : defaultConfig;
     }
 }

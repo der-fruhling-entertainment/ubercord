@@ -12,34 +12,34 @@ public record DisplayConfig(
         @Nullable DisplayMode playingSingleplayer,
         DisplayMode playingMultiplayer,
         @Nullable DisplayMode playingRealms,
-        HashMap<ResourceLocation, DisplayMode> dimensions,
-        HashMap<ResourceLocation, String> dimensionNames
+        HashMap<String, DisplayMode> dimensions,
+        HashMap<String, String> dimensionNames
 ) {
     public static final DisplayConfig DEFAULT_CLIENT = new DisplayConfig(
             new DisplayMode("Minecraft", Activity.Type.Playing, "Idling...", "Waiting for something to happen?", new Activity.Assets(
-                    new Activity.Asset("%dimension_id%", "In %dimension%"),
-                    new Activity.Asset("idle", "%player_name%")
+                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new Activity.Asset("idle", "Waiting for something to happen?")
             )),
             new DisplayMode("Minecraft", Activity.Type.Playing, "Playing singleplayer", "%world_name%", new Activity.Assets(
-                    new Activity.Asset("%dimension_id%", "In %dimension%"),
-                    new Activity.Asset("online", "%player_name%")
+                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new Activity.Asset("%dimension_id%", "In %dimension%")
             )),
             new DisplayMode("Minecraft", Activity.Type.Playing, "Playing online", "%server_name%", new Activity.Assets(
-                    new Activity.Asset("%dimension_id%", "In %dimension%"),
-                    new Activity.Asset("online", "%player_name%")
+                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new Activity.Asset("%dimension_id%", "In %dimension%")
             )),
             new DisplayMode("Minecraft", Activity.Type.Playing, "Playing online", "In a realm...", new Activity.Assets(
-                    new Activity.Asset("%dimension_id%", "In %dimension%"),
-                    new Activity.Asset("online", "%player_name%")
+                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new Activity.Asset("%dimension_id%", "In %dimension%")
             )),
             new HashMap<>(),
             new HashMap<>()
     );
 
     static {
-        DEFAULT_CLIENT.dimensionNames.put(ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"), "the Overworld");
-        DEFAULT_CLIENT.dimensionNames.put(ResourceLocation.fromNamespaceAndPath("minecraft", "nether"), "the Nether");
-        DEFAULT_CLIENT.dimensionNames.put(ResourceLocation.fromNamespaceAndPath("minecraft", "the_end"), "the End");
+        DEFAULT_CLIENT.dimensionNames.put("minecraft:overworld", "the Overworld");
+        DEFAULT_CLIENT.dimensionNames.put("minecraft:nether", "the Nether");
+        DEFAULT_CLIENT.dimensionNames.put("minecraft:the_end", "the End");
     }
 
     public void encode(CompoundTag tag) {
@@ -82,18 +82,18 @@ public record DisplayConfig(
                 ? DisplayMode.decode(tag.getCompound("playing_r"))
                 : null;
 
-        HashMap<ResourceLocation, DisplayMode> dimensions = new HashMap<>();
+        HashMap<String, DisplayMode> dimensions = new HashMap<>();
         CompoundTag dims = tag.getCompound("dimensions");
 
         for (String key : dims.getAllKeys()) {
-            dimensions.put(ResourceLocation.parse(key), DisplayMode.decode(dims.getCompound(key)));
+            dimensions.put(key, DisplayMode.decode(dims.getCompound(key)));
         }
 
-        HashMap<ResourceLocation, String> dimensionNames = new HashMap<>();
+        HashMap<String, String> dimensionNames = new HashMap<>();
         CompoundTag dimNames = tag.getCompound("dimension_names");
 
         for (String key : dimNames.getAllKeys()) {
-            dimensionNames.put(ResourceLocation.parse(key), dimNames.getString(key));
+            dimensionNames.put(key, dimNames.getString(key));
         }
 
         return new DisplayConfig(idle, playingSingleplayer, playingMultiplayer, playingRealms, dimensions, dimensionNames);

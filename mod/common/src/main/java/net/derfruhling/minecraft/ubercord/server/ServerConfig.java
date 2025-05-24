@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.util.UUID;
 
 public record ServerConfig(
-        long clientId,
         UUID serverId,
         @Nullable String botToken,
         @Nullable DisplayConfig display,
@@ -26,7 +25,7 @@ public record ServerConfig(
             .create();
 
     public ServerConfig() {
-        this(1367390201621512313L, UUID.randomUUID(), null, null, null, null);
+        this(UUID.randomUUID(), null, null, null, null);
     }
 
     public static ServerConfig loadOrDefault(MinecraftServer server) {

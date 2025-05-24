@@ -3,6 +3,7 @@ package net.derfruhling.minecraft.ubercord.client;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
+import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.*;
 import net.derfruhling.minecraft.ubercord.ChannelSecret;
@@ -17,6 +18,7 @@ import net.derfruhling.minecraft.ubercord.packets.NotifyAboutUserId;
 import net.derfruhling.minecraft.ubercord.packets.RequestJoinLobby;
 import net.derfruhling.minecraft.ubercord.packets.SetUserIdPacket;
 import net.minecraft.ChatFormatting;
+import net.minecraft.SharedConstants;
 import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.SystemToast;
@@ -93,6 +95,10 @@ public class SocialSdkIntegration {
         }
 
         this.defaultConfig = config.getDefaultConfig();
+    }
+
+    public void setDisplayConfig(DisplayConfig displayConfig) {
+        this.displayConfig = displayConfig;
     }
 
     private record OnlinePlayer(String username, long userId, boolean isProvisional) {}
@@ -447,10 +453,11 @@ public class SocialSdkIntegration {
         });
     }
 
-    public void leaveServer() {
+    public synchronized void leaveServer() {
         channelHusks.clear();
         knownChannels.forEach((s, joinedChannel) -> leaveLobby(joinedChannel.lobbyId()));
         currentChannel = null;
+        displayConfig = defaultConfig;
     }
 
     public static void connectWithJoinSecret(String joinSecret) {
@@ -483,10 +490,7 @@ public class SocialSdkIntegration {
     }
 
     public void disconnect() {
-        synchronized (this) {
-            knownChannels.clear();
-            currentChannel = null;
-        }
+        leaveServer();
 
         client.disconnect();
     }
@@ -689,11 +693,11 @@ public class SocialSdkIntegration {
 
     // TODO use provisional merge here as the docs say (keeps it unique with provisional accts)
     void authorizeReal(long clientId, boolean chatFeaturesEnabled) {
-        String state = Minecraft.getInstance().getUser().getName();
+        String state = Minecraft.getInstance().getUser().getName() + ":" + new Random().nextLong();
         CodeVerifier ver = client.createAuthorizationCodeVerifier();
 
         generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.discord.begin"));
-        client.authorize(clientId, chatFeaturesEnabled ? Client.COMMUNICATIONS_SCOPES : Client.PRESENCE_SCOPES, state, ver.challenge(), (result, code, redirectUri) -> {
+        client.authorize(clientId, chatFeaturesEnabled ? getCommunicationsScopes() : Client.PRESENCE_SCOPES, state, ver.challenge(), (result, code, redirectUri) -> {
             if (result.isSuccess()) {
                 client.getToken(clientId, code, ver.verifier(), redirectUri, (result1, accessToken, refreshToken, type, expiresIn, scopes) -> {
                     if (result1.isSuccess()) {
@@ -708,6 +712,14 @@ public class SocialSdkIntegration {
                 authorizeProvisional(clientId);
             }
         });
+    }
+
+    private static String[] getCommunicationsScopes() {
+        String[] scopes = new String[Client.COMMUNICATIONS_SCOPES.length + 2];
+        scopes[0] = "bot";
+        scopes[1] = "application.commands";
+        System.arraycopy(Client.COMMUNICATIONS_SCOPES, 0, scopes, 2, Client.COMMUNICATIONS_SCOPES.length);
+        return scopes;
     }
 
     private void onTokenGet(long clientId, String accessToken, String refreshToken, boolean isProvisional) {
@@ -735,11 +747,29 @@ public class SocialSdkIntegration {
         });
     }
 
-    private AtomicBoolean isWaitingForProvisional = new AtomicBoolean(false);
-    private AtomicReference<String> provisionalState = new AtomicReference<>();
+    private final AtomicBoolean isWaitingForProvisional = new AtomicBoolean(false);
+    private final AtomicReference<String> provisionalState = new AtomicReference<>();
     private long clientId = 0;
 
     void authorizeProvisional(long clientId) {
+        if(Minecraft.getInstance().player == null) {
+            ClientPlayerEvent.ClientPlayerJoin event = new ClientPlayerEvent.ClientPlayerJoin() {
+                @Override
+                public void join(LocalPlayer player) {
+                    SocialSdkIntegration.this.authorizeProvisional(clientId);
+                    ClientPlayerEvent.CLIENT_PLAYER_JOIN.unregister(this);
+                }
+            };
+
+            ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(event);
+            return;
+        }
+
+        if(!NetworkManager.canServerReceive(BeginProvisionalAuthorizationFlow.TYPE)) {
+            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.not_supported"));
+            return;
+        }
+
         generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.begin"));
         isWaitingForProvisional.set(true);
         provisionalState.set(clientId + ":" + new Random().nextLong());
@@ -764,6 +794,16 @@ public class SocialSdkIntegration {
         if(!isWaitingForProvisional.get()) return;
 
         isWaitingForProvisional.set(false);
+        if(secret.isEmpty()) {
+            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_server"));
+            return;
+        }
+
+        if(secret.equals("OFFLINE")) {
+            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_offline"));
+            return;
+        }
+
         generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.got_token"));
         LocalPlayer player = Minecraft.getInstance().player;
         assert player != null;
@@ -781,8 +821,11 @@ public class SocialSdkIntegration {
                     .handleAsync((response, throwable) -> {
                         if(throwable != null) {
                             generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable.getMessage()));
+                        } else if(response.statusCode() != 200) {
+                            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
                         } else {
                             client.getProvisionalToken(clientId, ExternalAuthType.OIDC, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
+                                log.info("scopes: {}", String.join(" ", scopes));
                                 if (result.isSuccess()) {
                                     onTokenGet(clientId, accessToken, refreshToken, true);
                                 } else {
@@ -1167,17 +1210,19 @@ public class SocialSdkIntegration {
 
         return SUB_PATTERN.matcher(value).replaceAll(matchResult -> {
             String group = matchResult.group(1);
+            final Minecraft client = Minecraft.getInstance();
             return switch(group) {
-                case "dimension_id" -> Minecraft.getInstance().player != null
-                        ? Minecraft.getInstance().player.level().dimension().location().toString()
+                case "dimension_id" -> client.player != null
+                        ? client.player.level().dimension().location().toString()
                         : "%" + group + "%";
-                case "dimension" -> Minecraft.getInstance().player != null
-                        ? displayConfig.dimensionNames().get(Minecraft.getInstance().player.level().dimension().location())
+                case "dimension" -> client.player != null
+                        ? displayConfig.dimensionNames().getOrDefault(client.player.level().dimension().location().toString(), "%" + group + "%")
                         : "%" + group + "%";
-                case "world_name" -> Minecraft.getInstance().getSingleplayerServer() != null
-                        ? Minecraft.getInstance().getSingleplayerServer().getWorldData().getLevelName()
+                case "world_name" -> client.getSingleplayerServer() != null
+                        ? client.getSingleplayerServer().getWorldData().getLevelName()
                         : "%" + group + "%";
-                case "player_name" -> Minecraft.getInstance().getGameProfile().getName();
+                case "player_name" -> client.getGameProfile().getName();
+                case "version" -> SharedConstants.getCurrentVersion().getName();
                 default -> "%" + group + "%";
             };
         });

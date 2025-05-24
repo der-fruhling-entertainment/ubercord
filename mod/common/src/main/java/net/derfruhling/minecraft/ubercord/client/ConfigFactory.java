@@ -1,6 +1,5 @@
 package net.derfruhling.minecraft.ubercord.client;
 
-import me.shedaniel.clothconfig2.api.AbstractConfigListEntry;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
@@ -11,11 +10,7 @@ import net.derfruhling.discord.socialsdk4j.Activity;
 import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -24,7 +19,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -175,8 +169,8 @@ public class ConfigFactory {
         AtomicReference<DisplayMode> singleplayer = new AtomicReference<>();
         AtomicReference<DisplayMode> multiplayer = new AtomicReference<>();
         AtomicReference<DisplayMode> realms = new AtomicReference<>();
-        HashMap<ResourceLocation, DisplayMode> modes = new HashMap<>();
-        HashMap<ResourceLocation, String> names = new HashMap<>();
+        HashMap<String, DisplayMode> modes = new HashMap<>();
+        HashMap<String, String> names = new HashMap<>();
 
         builder.add(addDisplayMode(entryBuilder, config.idle() != null ? config.idle() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.idle"), idle::set));
         builder.add(addDisplayMode(entryBuilder, config.playingSingleplayer() != null ? config.playingSingleplayer() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.singleplayer"), singleplayer::set));
@@ -185,10 +179,10 @@ public class ConfigFactory {
 
         if (Minecraft.getInstance().level != null) {
             for (ResourceKey<Level> id : Objects.requireNonNull(Minecraft.getInstance().getConnection()).levels()) {
-                DisplayMode mode = config.dimensions().get(id.location());
+                DisplayMode mode = config.dimensions().get(id.location().toString());
                 builder.add(addDisplayMode(entryBuilder, mode != null ? mode : DEFAULT_MODE, Component.literal(id.toString()), displayMode -> {
                     if(!displayMode.name().equals(DISABLED_NAME)) {
-                        modes.put(id.location(), displayMode);
+                        modes.put(id.location().toString(), displayMode);
                     }
                 }));
             }
@@ -202,7 +196,7 @@ public class ConfigFactory {
 
                     for (String string : strings) {
                         String[] parts = string.split("=", 2);
-                        names.put(ResourceLocation.tryParse(parts[0]), parts[1]);
+                        names.put(Objects.requireNonNull(ResourceLocation.tryParse(parts[0])).toString(), parts[1]);
                     }
                 })
                 .build());

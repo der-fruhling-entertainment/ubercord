@@ -9,6 +9,8 @@ import com.google.gson.Gson;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.NetworkManager;
+import net.derfruhling.minecraft.ubercord.client.Badge;
+import net.derfruhling.minecraft.ubercord.client.ProvisionalServiceDownException;
 import net.derfruhling.minecraft.ubercord.packets.*;
 import net.derfruhling.minecraft.ubercord.server.AuthenticationConfig;
 import net.derfruhling.minecraft.ubercord.server.AuthorizeUserRequest;
@@ -53,7 +55,7 @@ public final class Ubercord {
             try {
                 return (RSAPublicKey) jwks.get(s).getPublicKey();
             } catch (JwkException e) {
-                throw new RuntimeException(e);
+                throw new ProvisionalServiceDownException("Provisional service is down", e);
             }
         }
 
@@ -70,18 +72,23 @@ public final class Ubercord {
 
     static final Algorithm rsa = Algorithm.RSA256(key);
 
-    static final HttpClient homeHttp = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NEVER)
-            .authenticator(new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return switch(getRequestingHost()) {
-                        case "ubercord.derfruhling.net", "maximum-honest-cat.ngrok-free.app" -> new PasswordAuthentication(authConfig.clientId(), authConfig.clientKey().toCharArray());
-                        default -> null;
-                    };
-                }
-            })
-            .build();
+    static HttpClient homeHttp = createHomeHttp();
+
+    private static HttpClient createHomeHttp() {
+        return HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .authenticator(new Authenticator() {
+                    @Override
+                    protected PasswordAuthentication getPasswordAuthentication() {
+                        return switch (getRequestingHost()) {
+                            case "ubercord.derfruhling.net", "maximum-honest-cat.ngrok-free.app" ->
+                                    new PasswordAuthentication(authConfig.clientId(), authConfig.clientKey().toCharArray());
+                            default -> null;
+                        };
+                    }
+                })
+                .build();
+    }
 
     static final HttpClient discordHttp = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -102,7 +109,11 @@ public final class Ubercord {
         LifecycleEvent.SERVER_BEFORE_START.register(server -> {
             serverConfig = ServerConfig.loadOrDefault(server);
             if(serverConfig != null && serverConfig.authKey() != null) {
-                authConfig = AuthenticationConfig.decode(serverConfig.authKey());
+                try {
+                    authConfig = AuthenticationConfig.decode(serverConfig.authKey());
+                } catch (ProvisionalServiceDownException e) {
+                    log.warn("Provisional service is down", e);
+                }
             }
         });
 
@@ -174,6 +185,8 @@ public final class Ubercord {
                     NetworkManager.sendToPlayers(
                             Objects.requireNonNull(context.getPlayer().getServer()).getPlayerList().getPlayers(),
                             new NotifyAboutUserId(context.getPlayer().getName().getString(), context.getPlayer().getUUID(), value.userId(), value.isProvisional()));
+
+                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new DeclareServerConfig(serverConfig));
                 }
         );
 
@@ -192,6 +205,10 @@ public final class Ubercord {
                 BeginProvisionalAuthorizationFlow.STREAM_CODEC,
                 (value, context) -> {
                     // TODO config
+                    if(context.getPlayer().getGameProfile().getId().version() != 4) {
+                        context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("OFFLINE")));
+                    }
+
                     homeHttp.sendAsync(HttpRequest.newBuilder()
                                     .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(new AuthorizeUserRequest(
                                             context.getPlayer().getUUID(),
@@ -202,6 +219,11 @@ public final class Ubercord {
                             .handleAsync((response, throwable) -> {
                                 if (throwable != null) {
                                     log.error("Failed to authorize user {}", context.getPlayer(), throwable);
+                                    context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("")));
+                                    homeHttp.close();
+                                    homeHttp = createHomeHttp();
+                                } else if(response.statusCode() != 200) {
+                                    context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("")));
                                 } else {
                                     String secret = response.body();
                                     context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret(secret)));
@@ -233,6 +255,11 @@ public final class Ubercord {
         NetworkManager.registerS2CPayloadType(
                 NotifyAboutUserId.TYPE,
                 NotifyAboutUserId.STREAM_CODEC
+        );
+
+        NetworkManager.registerS2CPayloadType(
+                DeclareServerConfig.TYPE,
+                DeclareServerConfig.STREAM_CODEC
         );
     }
 }
