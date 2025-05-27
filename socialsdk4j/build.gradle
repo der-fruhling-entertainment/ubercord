@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 plugins {
     id 'dev.nokee.jni-library'
     id 'dev.nokee.cpp-language'
@@ -8,6 +10,11 @@ plugins {
 
 group = "net.derfruhling.discord"
 version = "1.0-SNAPSHOT"
+
+tasks.register("unzipSocialSdk", Copy) {
+    from zipTree("discord-social-sdk.zip")
+    into "discord_social_sdk"
+}
 
 library {
     targetMachines = [machines.windows.x86_64, machines.macOS, machines.linux.x86_64]
@@ -60,6 +67,7 @@ def socialsdk4jJniWindowsArtifact = artifacts.add('artifact', layout.buildDirect
 
 def jarLinuxBinaries = tasks.register("jarLinuxBinaries", Jar) {
     archiveClassifier = "linux"
+    dependsOn("unzipSocialSdk")
 
     from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
 
@@ -76,6 +84,7 @@ def jarLinuxBinaries = tasks.register("jarLinuxBinaries", Jar) {
 
 def jarMacosBinaries = tasks.register("jarMacosBinaries", Jar) {
     archiveClassifier = "macos"
+    dependsOn("unzipSocialSdk")
 
     from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
 
@@ -91,7 +100,8 @@ def jarMacosBinaries = tasks.register("jarMacosBinaries", Jar) {
 }
 
 def jarWindowsBinaries = tasks.register("jarWindowsBinaries", Jar) {
-    archiveClassifier = "macos"
+    archiveClassifier = "windows"
+    dependsOn("unzipSocialSdk")
 
     from(rootProject.projectDir.toPath().resolve("LICENSE.txt"))
 
@@ -141,4 +151,8 @@ publishing {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.withType(LinkSharedLibrary).configureEach {
+    dependsOn("unzipSocialSdk")
 }
