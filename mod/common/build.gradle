@@ -18,5 +18,5 @@ dependencies {
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
-    implementation project(path: ":socialsdk4j", configuration: 'default')
+    api 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
 }

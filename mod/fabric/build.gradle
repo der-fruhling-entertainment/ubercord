@@ -35,13 +35,20 @@ dependencies {
         exclude(group: "net.fabricmc.fabric-api")
     }
 
-    implementation project(path: ":socialsdk4j", configuration: 'default')
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
+    api 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
+    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:linux'
+    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:windows'
+    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:macos'
+    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:linux'
+    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:windows'
+    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:macos'
+
     common(project(path: ':mod:common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':mod:common', configuration: 'transformProductionFabric')
-    shadowBundle project(path: ":socialsdk4j", configuration: 'default')
+    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
     shadowBundle 'com.auth0:java-jwt:4.5.0'
     shadowBundle 'com.auth0:jwks-rsa:0.22.1'
 }

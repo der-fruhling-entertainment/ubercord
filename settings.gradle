@@ -3,8 +3,6 @@ pluginManagement {
         maven { url "https://maven.fabricmc.net/" }
         maven { url "https://maven.architectury.dev/" }
         maven { url "https://files.minecraftforge.net/maven/" }
-        maven { url "https://repo.nokee.dev/release" }
-        maven { url "https://repo.nokee.dev/snapshot" }
         gradlePluginPortal()
     }
 
@@ -23,4 +21,3 @@ include 'mod'
 include 'mod:common'
 include 'mod:fabric'
 include 'mod:neoforge'
-include 'socialsdk4j'

@@ -37,6 +37,14 @@ subprojects {
 
         maven { url "https://maven.shedaniel.me/" }
         maven { url "https://maven.terraformersmc.com/releases/" }
+
+        maven {
+            url = uri("https://maven.pkg.github.com/der-fruhling-entertainment/socialsdk4j")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
+                password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+            }
+        }
     }
 
     dependencies {
