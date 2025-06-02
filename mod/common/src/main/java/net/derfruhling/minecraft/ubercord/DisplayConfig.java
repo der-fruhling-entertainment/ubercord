@@ -16,19 +16,19 @@ public record DisplayConfig(
         HashMap<String, String> dimensionNames
 ) {
     public static final DisplayConfig DEFAULT_CLIENT = new DisplayConfig(
-            new DisplayMode("Minecraft", Activity.Type.Playing, "Idling...", "Waiting for something to happen?", new Activity.Assets(
+            new DisplayMode(Activity.Type.Playing, "Idling...", "Waiting for something to happen?", new Activity.Assets(
                     new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
                     new Activity.Asset("idle", "Waiting for something to happen?")
             )),
-            new DisplayMode("Minecraft", Activity.Type.Playing, "Playing singleplayer", "%world_name%", new Activity.Assets(
+            new DisplayMode(Activity.Type.Playing, "Playing singleplayer", "%world_name%", new Activity.Assets(
                     new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
                     new Activity.Asset("%dimension_id%", "In %dimension%")
             )),
-            new DisplayMode("Minecraft", Activity.Type.Playing, "Playing online", "%server_name%", new Activity.Assets(
+            new DisplayMode(Activity.Type.Playing, "Playing online", "%server_name%", new Activity.Assets(
                     new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
                     new Activity.Asset("%dimension_id%", "In %dimension%")
             )),
-            new DisplayMode("Minecraft", Activity.Type.Playing, "Playing online", "In a realm...", new Activity.Assets(
+            new DisplayMode(Activity.Type.Playing, "Playing online", "In a realm...", new Activity.Assets(
                     new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
                     new Activity.Asset("%dimension_id%", "In %dimension%")
             )),

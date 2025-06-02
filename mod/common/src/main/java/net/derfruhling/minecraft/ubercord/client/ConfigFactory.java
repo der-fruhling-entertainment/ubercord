@@ -15,12 +15,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -44,8 +46,8 @@ public class ConfigFactory {
         AtomicReference<DisplayMode> newTitleDisplay = new AtomicReference<>();
         AtomicReference<DisplayConfig> newDisplayConfig = new AtomicReference<>();
 
-        basic.addEntry(addDisplayMode(entryBuilder, config.getTitleDisplay(), Component.translatable("ubercord.config.client.title_display"), newTitleDisplay::set));
-        basic.addEntry(addDisplayConfig(entryBuilder, config.getDefaultConfig(), newDisplayConfig::set));
+        basic.addEntry(addDisplayMode(entryBuilder, false, config.getTitleDisplay(), Component.translatable("ubercord.config.client.title_display"), newTitleDisplay::set));
+        basic.addEntry(addDisplayConfig(entryBuilder, true, config.getDefaultConfig(), newDisplayConfig::set));
 
         basic.addEntry(new EmptyEntry(0) {
             @Override
@@ -69,7 +71,6 @@ public class ConfigFactory {
     public static final String DISABLED_NAME = "Replace this with something to enable this option";
 
     private static final DisplayMode DEFAULT_MODE = new DisplayMode(
-            DISABLED_NAME,
             Activity.Type.Playing,
             "",
             "",
@@ -79,34 +80,38 @@ public class ConfigFactory {
             )
     );
 
-    private static SubCategoryListEntry addDisplayMode(ConfigEntryBuilder entryBuilder, DisplayMode mode, Component name, Consumer<DisplayMode> save) {
+    private static SubCategoryListEntry addDisplayMode(ConfigEntryBuilder entryBuilder, boolean isOptional, @Nullable DisplayMode mode, Component name, Consumer<DisplayMode> save) {
         SubCategoryBuilder builder = entryBuilder.startSubCategory(name);
 
-        AtomicReference<String> newName = new AtomicReference<>(mode.name());
-        AtomicReference<String> newState = new AtomicReference<>(mode.state());
-        AtomicReference<String> newDetails = new AtomicReference<>(mode.details());
-        AtomicReference<Activity.Type> newType = new AtomicReference<>(mode.type());
+        AtomicBoolean isEnabled = new AtomicBoolean(!isOptional);
+        AtomicReference<String> newState = new AtomicReference<>(mode != null ? mode.state() : "");
+        AtomicReference<String> newDetails = new AtomicReference<>(mode != null ? mode.details() : "");
+        AtomicReference<Activity.Type> newType = new AtomicReference<>(mode != null ? mode.type() : Activity.Type.Playing);
 
-        builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.name"), mode.name())
-                .setSaveConsumer(newName::set)
-                .build());
-        builder.add(entryBuilder.startEnumSelector(Component.translatable("ubercord.config.display_mode.type"), Activity.Type.class, mode.type())
+        if(isOptional) {
+            builder.add(entryBuilder.startBooleanToggle(Component.translatable("ubercord.config.toggle_enabled"), isEnabled.get())
+                    .setSaveConsumer(isEnabled::set)
+                    .build());
+        }
+
+        builder.add(entryBuilder.startEnumSelector(Component.translatable("ubercord.config.display_mode.type"), Activity.Type.class, newType.get())
                 .setSaveConsumer(newType::set)
                 .setEnumNameProvider(e -> Component.translatable("ubercord.config.display_mode.type." + e.name().toLowerCase()))
                 .build());
-        builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.state"), mode.state())
+        builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.state"), newState.get())
                 .setSaveConsumer(newState::set)
                 .build());
-        builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.details"), mode.details())
+        builder.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.details"), newDetails.get())
                 .setSaveConsumer(newDetails::set)
                 .build());
 
         SubCategoryBuilder assets = entryBuilder.startSubCategory(Component.translatable("ubercord.config.display_mode.assets"));
 
-        AtomicReference<String> newLargeImage = new AtomicReference<>(mode.assets() != null ? (mode.assets().large() != null ? mode.assets().large().image() : DISABLED_NAME) : DISABLED_NAME);
-        AtomicReference<String> newLargeText = new AtomicReference<>(mode.assets() != null ? (mode.assets().large() != null ? (mode.assets().large().text() != null ? mode.assets().large().text() : DISABLED_NAME) : DISABLED_NAME) : DISABLED_NAME);
-        AtomicReference<String> newSmallImage = new AtomicReference<>(mode.assets() != null ? (mode.assets().small() != null ? mode.assets().small().image() : DISABLED_NAME) : DISABLED_NAME);
-        AtomicReference<String> newSmallText = new AtomicReference<>(mode.assets() != null ? (mode.assets().small() != null ? (mode.assets().small().text() != null ? mode.assets().small().text() : DISABLED_NAME) : DISABLED_NAME) : DISABLED_NAME);
+        @Nullable Activity.Assets modeAssets = mode != null ? mode.assets() : null;
+        AtomicReference<String> newLargeImage = new AtomicReference<>(modeAssets != null ? (modeAssets.large() != null ? modeAssets.large().image() : DISABLED_NAME) : DISABLED_NAME);
+        AtomicReference<String> newLargeText = new AtomicReference<>(modeAssets != null ? (modeAssets.large() != null ? (modeAssets.large().text() != null ? modeAssets.large().text() : DISABLED_NAME) : DISABLED_NAME) : DISABLED_NAME);
+        AtomicReference<String> newSmallImage = new AtomicReference<>(modeAssets != null ? (modeAssets.small() != null ? modeAssets.small().image() : DISABLED_NAME) : DISABLED_NAME);
+        AtomicReference<String> newSmallText = new AtomicReference<>(modeAssets != null ? (modeAssets.small() != null ? (modeAssets.small().text() != null ? modeAssets.small().text() : DISABLED_NAME) : DISABLED_NAME) : DISABLED_NAME);
 
         SubCategoryBuilder large = entryBuilder.startSubCategory(Component.translatable("ubercord.config.display_mode.assets.large"));
         large.add(entryBuilder.startStrField(Component.translatable("ubercord.config.display_mode.assets.large.image"), newLargeImage.get())
@@ -133,36 +138,34 @@ public class ConfigFactory {
             @Override
             public void save() {
                 super.save();
+                save.accept(isEnabled.get() ? buildDisplayMode() : null);
+            }
 
-                if(newName.get().equals(DISABLED_NAME)) {
-                    save.accept(null);
-                } else {
-                    String newLargeImageVal = newLargeImage.get().equals(DISABLED_NAME) ? null : newLargeImage.get();
-                    String newLargeTextVal = newLargeText.get().equals(DISABLED_NAME) ? null : newLargeText.get();
-                    String newSmallImageVal = newSmallImage.get().equals(DISABLED_NAME) ? null : newSmallImage.get();
-                    String newSmallTextVal = newSmallText.get().equals(DISABLED_NAME) ? null : newSmallText.get();
+            private @NotNull DisplayMode buildDisplayMode() {
+                String newLargeImageVal = newLargeImage.get().equals(DISABLED_NAME) ? null : newLargeImage.get();
+                String newLargeTextVal = newLargeText.get().equals(DISABLED_NAME) ? null : newLargeText.get();
+                String newSmallImageVal = newSmallImage.get().equals(DISABLED_NAME) ? null : newSmallImage.get();
+                String newSmallTextVal = newSmallText.get().equals(DISABLED_NAME) ? null : newSmallText.get();
 
-                    String newStateVal = newState.get().equals(DISABLED_NAME) ? null : newState.get();
-                    String newDetailsVal = newDetails.get().equals(DISABLED_NAME) ? null : newDetails.get();
+                String newStateVal = newState.get().equals(DISABLED_NAME) ? null : newState.get();
+                String newDetailsVal = newDetails.get().equals(DISABLED_NAME) ? null : newDetails.get();
 
-                    save.accept(new DisplayMode(
-                            newName.get(),
-                            newType.get(),
-                            newStateVal,
-                            newDetailsVal,
-                            newLargeImageVal != null || newSmallImageVal != null ? new Activity.Assets(
-                                    newLargeImageVal != null ? new Activity.Asset(newLargeImageVal, newLargeTextVal) : null,
-                                    newSmallImageVal != null ? new Activity.Asset(newSmallImageVal, newSmallTextVal) : null
-                            ) : null
-                    ));
-                }
+                return new DisplayMode(
+                        newType.get(),
+                        newStateVal,
+                        newDetailsVal,
+                        newLargeImageVal != null || newSmallImageVal != null ? new Activity.Assets(
+                                newLargeImageVal != null ? new Activity.Asset(newLargeImageVal, newLargeTextVal) : null,
+                                newSmallImageVal != null ? new Activity.Asset(newSmallImageVal, newSmallTextVal) : null
+                        ) : null
+                );
             }
         });
 
         return builder.build();
     }
 
-    private static SubCategoryListEntry addDisplayConfig(ConfigEntryBuilder entryBuilder, DisplayConfig config, Consumer<DisplayConfig> save) {
+    private static SubCategoryListEntry addDisplayConfig(ConfigEntryBuilder entryBuilder, boolean isRoot, DisplayConfig config, Consumer<DisplayConfig> save) {
         SubCategoryBuilder builder = entryBuilder.startSubCategory(Component.translatable("ubercord.config.display_config"));
 
         AtomicReference<DisplayMode> idle = new AtomicReference<>();
@@ -172,18 +175,16 @@ public class ConfigFactory {
         HashMap<String, DisplayMode> modes = new HashMap<>();
         HashMap<String, String> names = new HashMap<>();
 
-        builder.add(addDisplayMode(entryBuilder, config.idle() != null ? config.idle() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.idle"), idle::set));
-        builder.add(addDisplayMode(entryBuilder, config.playingSingleplayer() != null ? config.playingSingleplayer() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.singleplayer"), singleplayer::set));
-        builder.add(addDisplayMode(entryBuilder, config.playingMultiplayer() != null ? config.playingMultiplayer() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.multiplayer"), multiplayer::set));
-        builder.add(addDisplayMode(entryBuilder, config.playingRealms() != null ? config.playingRealms() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.realms"), realms::set));
+        builder.add(addDisplayMode(entryBuilder, !isRoot, config.idle() != null ? config.idle() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.idle"), idle::set));
+        builder.add(addDisplayMode(entryBuilder, !isRoot, config.playingSingleplayer() != null ? config.playingSingleplayer() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.singleplayer"), singleplayer::set));
+        builder.add(addDisplayMode(entryBuilder, !isRoot, config.playingMultiplayer() != null ? config.playingMultiplayer() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.multiplayer"), multiplayer::set));
+        builder.add(addDisplayMode(entryBuilder, !isRoot, config.playingRealms() != null ? config.playingRealms() : DEFAULT_MODE, Component.translatable("ubercord.config.display_config.realms"), realms::set));
 
         if (Minecraft.getInstance().level != null) {
             for (ResourceKey<Level> id : Objects.requireNonNull(Minecraft.getInstance().getConnection()).levels()) {
                 DisplayMode mode = config.dimensions().get(id.location().toString());
-                builder.add(addDisplayMode(entryBuilder, mode != null ? mode : DEFAULT_MODE, Component.literal(id.toString()), displayMode -> {
-                    if(!displayMode.name().equals(DISABLED_NAME)) {
-                        modes.put(id.location().toString(), displayMode);
-                    }
+                builder.add(addDisplayMode(entryBuilder, true, mode != null ? mode : DEFAULT_MODE, Component.literal(id.toString()), displayMode -> {
+                    modes.put(id.location().toString(), displayMode);
                 }));
             }
         }
@@ -206,7 +207,7 @@ public class ConfigFactory {
             public void save() {
                 super.save();
 
-                save.accept(new DisplayConfig(orNull(idle.get()), orNull(singleplayer.get()), orNull(multiplayer.get()), orNull(realms.get()), modes, names));
+                save.accept(new DisplayConfig(idle.get(), singleplayer.get(), multiplayer.get(), realms.get(), modes, names));
             }
         });
 
@@ -214,6 +215,6 @@ public class ConfigFactory {
     }
 
     private static @Nullable DisplayMode orNull(DisplayMode mode) {
-        return Objects.equals(mode.name(), DISABLED_NAME) ? null : mode;
+        return mode;
     }
 }

@@ -122,6 +122,7 @@
   "ubercord.config.display_config.realms": "When playing realms",
   "ubercord.config.display_config.dimension_names": "Dimension Names",
   "ubercord.config.map_must_contain_equals_error": "Error: this value must contain an equals sign (e.g. minecraft:overworld=Overworld)",
+  "ubercord.config.toggle_enabled": "Enabled",
   "ubercord.invite.error": "Failed to send invite: %s",
   "ubercord.invite.success": "Sent invite successfully",
   "ubercord.invite.new": "You've been invited by %s to join their game!",

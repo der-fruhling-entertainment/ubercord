@@ -1021,7 +1021,7 @@ public class SocialSdkIntegration {
                 .append(Component.literal(lobbyName)
                         .withStyle(Style.EMPTY
                                 .withColor(ChatFormatting.BLUE)
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/channel " + lobbyName))))
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "~" + lobbyName + " "))))
                 .append(" [")
                 .append(sourceBadge.create(sourceIgn, sourceUsername, sourceUserId, relationshipWithSource))
                 .append("] ")
@@ -1165,8 +1165,6 @@ public class SocialSdkIntegration {
                     smallImage != null ? new Activity.Asset(smallImage, smallText) : null
             ));
         }
-
-        activity.setName(mode.name());
 
         ServerData currentServer = Minecraft.getInstance().getCurrentServer();
         IntegratedServer integratedServer = Minecraft.getInstance().getSingleplayerServer();

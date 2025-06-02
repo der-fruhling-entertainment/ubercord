@@ -5,14 +5,12 @@ import net.minecraft.nbt.CompoundTag;
 import org.jetbrains.annotations.Nullable;
 
 public record DisplayMode(
-        String name,
         Activity.Type type,
         String state,
         String details,
         @Nullable Activity.Assets assets
 ) {
     public void encode(CompoundTag tag) {
-        tag.putString("name", name);
         tag.putInt("type", type.ordinal());
         tag.putString("state", state);
         tag.putString("details", details);
@@ -46,7 +44,6 @@ public record DisplayMode(
     }
 
     public static DisplayMode decode(CompoundTag tag) {
-        String name = tag.getString("name");
         Activity.Type type = Activity.Type.values()[tag.getInt("type")];
         String state = tag.getString("state");
         String details = tag.getString("details");
@@ -87,7 +84,7 @@ public record DisplayMode(
             );
         }
 
-        return new DisplayMode(name, type, state, details, assets);
+        return new DisplayMode(type, state, details, assets);
     }
 
     public CompoundTag toCompoundTag() {

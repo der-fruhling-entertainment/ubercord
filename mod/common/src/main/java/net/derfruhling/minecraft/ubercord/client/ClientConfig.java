@@ -16,7 +16,6 @@ public class ClientConfig {
     private long defaultClientId = 1367390201621512313L;
 
     private DisplayMode titleDisplay = new DisplayMode(
-            "Minecraft",
             Activity.Type.Playing,
             "On the menu",
             "Thinking about what to do...",
