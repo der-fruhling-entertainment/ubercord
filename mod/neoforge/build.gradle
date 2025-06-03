@@ -57,6 +57,14 @@ dependencies {
     shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
     shadowBundle 'com.auth0:java-jwt:4.5.0'
     shadowBundle 'com.auth0:jwks-rsa:0.22.1'
+
+    // TODO download automatically?
+    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:linux'
+    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:windows'
+    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:macos'
+    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:linux'
+    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:windows'
+    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:macos'
 }
 
 processResources {
