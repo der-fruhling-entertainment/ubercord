@@ -138,6 +138,7 @@
   "ubercord.link.no_channel_selected_error": "You must first select a channel with /channel <name> before you can use /link.",
   "ubercord.generic.no_channel_selected_error": "No channel selected. Use /channel <name> to change channels.",
   "ubercord.generic.unknown_channel_error": "Unknown channel: %s",
+  "ubercord.generic.joining_global_warning": "Not connected to a supported server, joining global channel instead",
   "ubercord.generic.error": "error! %s",
   "ubercord.lobby.not_found_error": "error! Lobby not found!",
   "ubercord.friend.request.failed.exception": "Failed to send friend request to %s; exception: %s",

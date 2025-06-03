@@ -19,6 +19,7 @@ import net.derfruhling.minecraft.ubercord.packets.RequestJoinLobby;
 import net.derfruhling.minecraft.ubercord.packets.SetUserIdPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
+import net.minecraft.Util;
 import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.SystemToast;
@@ -80,6 +81,8 @@ public class SocialSdkIntegration {
     private final Map<Long, ActivityInvite> invites = new HashMap<>();
     private DisplayConfig defaultConfig = config.getDefaultConfig();
     private DisplayConfig displayConfig = defaultConfig;
+    private final PlayerState globalPlayerState = PlayerState.loadMaybe(Util.NIL_UUID);
+    private @Nullable PlayerState serverPlayerState = null;
 
     private final long start = Instant.now().getEpochSecond() * 1000;
 
@@ -97,8 +100,24 @@ public class SocialSdkIntegration {
         this.defaultConfig = config.getDefaultConfig();
     }
 
-    public void setDisplayConfig(DisplayConfig displayConfig) {
-        this.displayConfig = displayConfig;
+    public void setServerConfig(UUID serverConfigId, @Nullable DisplayConfig displayConfig) {
+        if(displayConfig != null) {
+            this.displayConfig = displayConfig;
+        }
+
+        if(this.serverPlayerState != null) {
+            try {
+                serverPlayerState.save();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to save previous player state", e);
+            }
+        }
+
+        this.serverPlayerState = PlayerState.loadMaybe(serverConfigId);
+
+        for (String name : serverPlayerState.getJoinedChannels()) {
+            joinLobby(JoinedChannel.Context.Server, name);
+        }
     }
 
     private record OnlinePlayer(String username, long userId, boolean isProvisional) {}
@@ -120,6 +139,10 @@ public class SocialSdkIntegration {
                     if(chatFeaturesEnabled) {
                         generatePrebuiltMessage(Badge.DISCORD, Component.translatable("ubercord.auth.connected"));
                         NetworkManager.sendToServer(new SetUserIdPacket(self.id, self.isProvisional()));
+                    }
+
+                    for (String name : globalPlayerState.getJoinedChannels()) {
+                        joinLobby(JoinedChannel.Context.Global, name);
                     }
 
                     log.info("Executing {} deferred runnables", whenReady.size());
@@ -420,7 +443,32 @@ public class SocialSdkIntegration {
     }
 
     public void leaveLobby(String name) {
-        leaveLobby(Objects.requireNonNull(getJoinedChannel(name)).lobbyId());
+        JoinedChannel channel = Objects.requireNonNull(getJoinedChannel(name));
+
+        switch (channel.context()) {
+            case Global -> {
+                globalPlayerState.getJoinedChannels().remove(name);
+
+                try {
+                    globalPlayerState.save();
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to save player state", e);
+                }
+            }
+            case Server -> {
+                if(serverPlayerState != null) {
+                    serverPlayerState.getJoinedChannels().remove(name);
+
+                    try {
+                        serverPlayerState.save();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to save player state", e);
+                    }
+                }
+            }
+        }
+
+        leaveLobby(channel.lobbyId());
     }
 
     public void joinLobby(JoinedChannel.Context ctx, String name) {
@@ -428,12 +476,44 @@ public class SocialSdkIntegration {
             return;
         }
 
-        channelHusks.put(name, new JoinedChannel.Husk(JoinedChannel.Context.Server, name));
-
         switch (ctx) {
-            case Global -> joinLobby(name, ChannelSecret.generateGlobalSecret(name));
-            case Server -> NetworkManager.sendToServer(new RequestJoinLobby(name));
+            case Global -> {
+                joinLobby(name, ChannelSecret.generateGlobalSecret(name));
+                List<String> ch = globalPlayerState.getJoinedChannels();
+
+                if(!ch.contains(name)) {
+                    ch.add(name);
+
+                    try {
+                        globalPlayerState.save();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to save player state", e);
+                    }
+                }
+            }
+
+            case Server -> {
+                if(serverPlayerState != null) {
+                    NetworkManager.sendToServer(new RequestJoinLobby(name));
+                    List<String> ch = serverPlayerState.getJoinedChannels();
+
+                    if(!ch.contains(name)) {
+                        ch.add(name);
+
+                        try {
+                            serverPlayerState.save();
+                        } catch (IOException e) {
+                            throw new RuntimeException("Failed to save player state", e);
+                        }
+                    }
+                } else {
+                    generatePrebuiltMessage(Badge.YELLOW_EXCLAIM, Component.translatable("ubercord.generic.joining_global_warning"));
+                    joinLobby(JoinedChannel.Context.Global, name);
+                }
+            }
         }
+
+        channelHusks.put(name, new JoinedChannel.Husk(ctx, name));
     }
 
     public void joinLobby(String name, String secret) {
@@ -455,7 +535,11 @@ public class SocialSdkIntegration {
 
     public synchronized void leaveServer() {
         channelHusks.clear();
-        knownChannels.forEach((s, joinedChannel) -> leaveLobby(joinedChannel.lobbyId()));
+        knownChannels.forEach((s, joinedChannel) -> {
+            if(joinedChannel.context() == JoinedChannel.Context.Server) {
+                leaveLobby(joinedChannel.lobbyId());
+            }
+        });
         currentChannel = null;
         displayConfig = defaultConfig;
     }

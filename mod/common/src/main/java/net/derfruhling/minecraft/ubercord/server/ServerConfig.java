@@ -15,6 +15,7 @@ import java.util.UUID;
 
 public record ServerConfig(
         UUID serverId,
+        UUID serverConfigId,
         @Nullable String botToken,
         @Nullable DisplayConfig display,
         @Nullable String authDomain,
@@ -25,7 +26,7 @@ public record ServerConfig(
             .create();
 
     public ServerConfig() {
-        this(UUID.randomUUID(), null, null, null, null);
+        this(UUID.randomUUID(), UUID.randomUUID(), null, null, null, null);
     }
 
     public static ServerConfig loadOrDefault(MinecraftServer server) {

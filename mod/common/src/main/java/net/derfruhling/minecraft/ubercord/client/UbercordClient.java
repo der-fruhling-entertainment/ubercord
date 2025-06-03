@@ -85,9 +85,7 @@ public final class UbercordClient {
                 DeclareServerConfig.TYPE,
                 DeclareServerConfig.STREAM_CODEC,
                 (value, context) -> {
-                    if(value.config() != null) {
-                        integration.setDisplayConfig(value.config());
-                    }
+                    integration.setServerConfig(value.serverConfigId(), value.config());
 
                     updatePlayingRichPresence();
                 }
