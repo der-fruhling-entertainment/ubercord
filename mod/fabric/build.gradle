@@ -1,3 +1,4 @@
+//file:noinspection DependencyNotationArgument
 plugins {
     id 'com.github.johnrengelman.shadow'
 }
@@ -25,6 +26,9 @@ configurations {
 }
 
 dependencies {
+    implementation platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
+    shadowBundle platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
+
     modImplementation "net.fabricmc:fabric-loader:$rootProject.fabric_loader_version"
     modImplementation "net.fabricmc.fabric-api:fabric-api:$rootProject.fabric_api_version"
     modImplementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
@@ -38,27 +42,27 @@ dependencies {
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
-    api 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
-    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:linux'
-    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:windows'
-    runtimeOnly 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:macos'
-    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:linux'
-    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:windows'
-    runtimeOnly 'net.derfruhling.discord:socialsdk:1.2.8730:macos'
+    api 'net.derfruhling.discord:socialsdk4j'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'linux'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'windows'
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'macos'
 
     common(project(path: ':mod:common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':mod:common', configuration: 'transformProductionFabric')
-    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
+    shadowBundle "net.derfruhling.discord:socialsdk4j"
     shadowBundle 'com.auth0:java-jwt:4.5.0'
     shadowBundle 'com.auth0:jwks-rsa:0.22.1'
 
     // TODO download automatically?
-    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:linux'
-    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:windows'
-    shadowBundle 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT:macos'
-    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:linux'
-    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:windows'
-    shadowBundle 'net.derfruhling.discord:socialsdk:1.2.8730:macos'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'linux'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'windows'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'macos'
 }
 
 processResources {

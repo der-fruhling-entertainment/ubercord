@@ -3,6 +3,8 @@ architectury {
 }
 
 dependencies {
+    implementation platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
+
     // We depend on Fabric Loader here to use the Fabric @Environment annotations,
     // which get remapped to the correct annotations on each platform.
     // Do NOT use other classes from Fabric Loader.
@@ -12,11 +14,11 @@ dependencies {
     modImplementation "dev.lambdaurora:spruceui:$rootProject.spruceui_version"
 
     modApi("me.shedaniel.cloth:cloth-config-fabric:15.0.140") {
-        exclude(group: "net.fabricmc.fabric-api")
+        exclude group: "net.fabricmc.fabric-api"
     }
 
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
-    api 'net.derfruhling.discord:socialsdk4j:1.0-SNAPSHOT'
+    api 'net.derfruhling.discord:socialsdk4j'
 }
