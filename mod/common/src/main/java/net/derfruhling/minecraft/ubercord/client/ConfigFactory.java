@@ -6,7 +6,8 @@ import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.entries.EmptyEntry;
 import me.shedaniel.clothconfig2.gui.entries.SubCategoryListEntry;
 import me.shedaniel.clothconfig2.impl.builders.SubCategoryBuilder;
-import net.derfruhling.discord.socialsdk4j.Activity;
+import net.derfruhling.discord.socialsdk4j.ActivityBuilder;
+import net.derfruhling.discord.socialsdk4j.ActivityType;
 import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.minecraft.client.Minecraft;
@@ -71,12 +72,12 @@ public class ConfigFactory {
     public static final String DISABLED_NAME = "Replace this with something to enable this option";
 
     private static final DisplayMode DEFAULT_MODE = new DisplayMode(
-            Activity.Type.Playing,
+            ActivityType.Playing,
             "",
             "",
-            new Activity.Assets(
-                    new Activity.Asset("", ""),
-                    new Activity.Asset("", "")
+            new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("", ""),
+                    new ActivityBuilder.Asset("", "")
             )
     );
 
@@ -86,7 +87,7 @@ public class ConfigFactory {
         AtomicBoolean isEnabled = new AtomicBoolean(!isOptional);
         AtomicReference<String> newState = new AtomicReference<>(mode != null ? mode.state() : "");
         AtomicReference<String> newDetails = new AtomicReference<>(mode != null ? mode.details() : "");
-        AtomicReference<Activity.Type> newType = new AtomicReference<>(mode != null ? mode.type() : Activity.Type.Playing);
+        AtomicReference<ActivityType> newType = new AtomicReference<>(mode != null ? mode.type() : ActivityType.Playing);
 
         if(isOptional) {
             builder.add(entryBuilder.startBooleanToggle(Component.translatable("ubercord.config.toggle_enabled"), isEnabled.get())
@@ -94,7 +95,7 @@ public class ConfigFactory {
                     .build());
         }
 
-        builder.add(entryBuilder.startEnumSelector(Component.translatable("ubercord.config.display_mode.type"), Activity.Type.class, newType.get())
+        builder.add(entryBuilder.startEnumSelector(Component.translatable("ubercord.config.display_mode.type"), ActivityType.class, newType.get())
                 .setSaveConsumer(newType::set)
                 .setEnumNameProvider(e -> Component.translatable("ubercord.config.display_mode.type." + e.name().toLowerCase()))
                 .build());
@@ -107,7 +108,7 @@ public class ConfigFactory {
 
         SubCategoryBuilder assets = entryBuilder.startSubCategory(Component.translatable("ubercord.config.display_mode.assets"));
 
-        @Nullable Activity.Assets modeAssets = mode != null ? mode.assets() : null;
+        @Nullable ActivityBuilder.Assets modeAssets = mode != null ? mode.assets() : null;
         AtomicReference<String> newLargeImage = new AtomicReference<>(modeAssets != null ? (modeAssets.large() != null ? modeAssets.large().image() : DISABLED_NAME) : DISABLED_NAME);
         AtomicReference<String> newLargeText = new AtomicReference<>(modeAssets != null ? (modeAssets.large() != null ? (modeAssets.large().text() != null ? modeAssets.large().text() : DISABLED_NAME) : DISABLED_NAME) : DISABLED_NAME);
         AtomicReference<String> newSmallImage = new AtomicReference<>(modeAssets != null ? (modeAssets.small() != null ? modeAssets.small().image() : DISABLED_NAME) : DISABLED_NAME);
@@ -154,9 +155,9 @@ public class ConfigFactory {
                         newType.get(),
                         newStateVal,
                         newDetailsVal,
-                        newLargeImageVal != null || newSmallImageVal != null ? new Activity.Assets(
-                                newLargeImageVal != null ? new Activity.Asset(newLargeImageVal, newLargeTextVal) : null,
-                                newSmallImageVal != null ? new Activity.Asset(newSmallImageVal, newSmallTextVal) : null
+                        newLargeImageVal != null || newSmallImageVal != null ? new ActivityBuilder.Assets(
+                                newLargeImageVal != null ? new ActivityBuilder.Asset(newLargeImageVal, newLargeTextVal) : null,
+                                newSmallImageVal != null ? new ActivityBuilder.Asset(newSmallImageVal, newSmallTextVal) : null
                         ) : null
                 );
             }

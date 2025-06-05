@@ -1,11 +1,11 @@
 package net.derfruhling.minecraft.ubercord.client;
 
 import com.google.gson.Gson;
-import net.derfruhling.discord.socialsdk4j.Activity;
+import net.derfruhling.discord.socialsdk4j.ActivityBuilder;
+import net.derfruhling.discord.socialsdk4j.ActivityType;
 import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.minecraft.client.Minecraft;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,12 +16,12 @@ public class ClientConfig {
     private long defaultClientId = 1367390201621512313L;
 
     private DisplayMode titleDisplay = new DisplayMode(
-            Activity.Type.Playing,
+            ActivityType.Playing,
             "On the menu",
             "Thinking about what to do...",
-            new Activity.Assets(
-                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
-                    new Activity.Asset("idle", "Waiting for something to happen?")
+            new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new ActivityBuilder.Asset("idle", "Waiting for something to happen?")
             )
     );
 

@@ -32,7 +32,7 @@ public class SuddenJoinRequestScreen extends SuddenInviteScreen {
     protected void acceptInvite() {
         SocialSdkIntegration sdk = UbercordClient.get();
         Client client = sdk.getClient();
-        ActivityInvite invite = new ActivityInvite(sdk.self.id, 0, 0, ActivityInvite.ActionType.Join, sdk.getCurrentClientId(), this.invite.partyId(), this.invite.sessionId());
+        ActivityInvite invite = new ActivityInvite(sdk.self.id, 0, 0, ActivityInvite.Type.Join, sdk.getCurrentClientId(), this.invite.partyId(), this.invite.sessionId());
         client.sendActivityJoinRequestReply(invite, (result) -> {
             if (result.isSuccess()) {
                 onClose();

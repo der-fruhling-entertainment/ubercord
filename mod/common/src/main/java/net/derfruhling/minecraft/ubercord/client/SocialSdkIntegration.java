@@ -908,7 +908,7 @@ public class SocialSdkIntegration {
                         } else if(response.statusCode() != 200) {
                             generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
                         } else {
-                            client.getProvisionalToken(clientId, ExternalAuthType.OIDC, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
+                            client.getProvisionalToken(clientId, ExternalAuthType.OpenIDConnect, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
                                 log.info("scopes: {}", String.join(" ", scopes));
                                 if (result.isSuccess()) {
                                     onTokenGet(clientId, accessToken, refreshToken, true);
@@ -1226,7 +1226,7 @@ public class SocialSdkIntegration {
     }
 
     private void reallyUpdateRichPresence(DisplayMode mode, boolean allowJoinIfPossible) {
-        Activity activity = new Activity()
+        ActivityBuilder activity = new ActivityBuilder()
                 .setType(mode.type())
                 .setState(substitute(mode.state()))
                 .setDetails(substitute(mode.details()));
@@ -1244,9 +1244,9 @@ public class SocialSdkIntegration {
                 smallText = substitute(mode.assets().small().text());
             }
 
-            activity.setAssets(new Activity.Assets(
-                    largeImage != null ? new Activity.Asset(largeImage, largeText) : null,
-                    smallImage != null ? new Activity.Asset(smallImage, smallText) : null
+            activity.setAssets(new ActivityBuilder.Assets(
+                    largeImage != null ? new ActivityBuilder.Asset(largeImage, largeText) : null,
+                    smallImage != null ? new ActivityBuilder.Asset(smallImage, smallText) : null
             ));
         }
 

@@ -1,14 +1,15 @@
 package net.derfruhling.minecraft.ubercord;
 
-import net.derfruhling.discord.socialsdk4j.Activity;
+import net.derfruhling.discord.socialsdk4j.ActivityBuilder;
+import net.derfruhling.discord.socialsdk4j.ActivityType;
 import net.minecraft.nbt.CompoundTag;
 import org.jetbrains.annotations.Nullable;
 
 public record DisplayMode(
-        Activity.Type type,
+        ActivityType type,
         String state,
         String details,
-        @Nullable Activity.Assets assets
+        @Nullable ActivityBuilder.Assets assets
 ) {
     public void encode(CompoundTag tag) {
         tag.putInt("type", type.ordinal());
@@ -44,7 +45,7 @@ public record DisplayMode(
     }
 
     public static DisplayMode decode(CompoundTag tag) {
-        Activity.Type type = Activity.Type.values()[tag.getInt("type")];
+        ActivityType type = ActivityType.values()[tag.getInt("type")];
         String state = tag.getString("state");
         String details = tag.getString("details");
 
@@ -75,12 +76,12 @@ public record DisplayMode(
             }
         }
 
-        Activity.Assets assets = null;
+        ActivityBuilder.Assets assets = null;
 
         if (smallImage != null || largeImage != null) {
-            assets = new Activity.Assets(
-                    largeImage != null ? new Activity.Asset(largeImage, largeText) : null,
-                    smallImage != null ? new Activity.Asset(smallImage, smallText) : null
+            assets = new ActivityBuilder.Assets(
+                    largeImage != null ? new ActivityBuilder.Asset(largeImage, largeText) : null,
+                    smallImage != null ? new ActivityBuilder.Asset(smallImage, smallText) : null
             );
         }
 

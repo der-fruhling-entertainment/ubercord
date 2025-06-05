@@ -1,8 +1,8 @@
 package net.derfruhling.minecraft.ubercord;
 
-import net.derfruhling.discord.socialsdk4j.Activity;
+import net.derfruhling.discord.socialsdk4j.ActivityBuilder;
+import net.derfruhling.discord.socialsdk4j.ActivityType;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
@@ -16,21 +16,21 @@ public record DisplayConfig(
         HashMap<String, String> dimensionNames
 ) {
     public static final DisplayConfig DEFAULT_CLIENT = new DisplayConfig(
-            new DisplayMode(Activity.Type.Playing, "Idling...", "Waiting for something to happen?", new Activity.Assets(
-                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
-                    new Activity.Asset("idle", "Waiting for something to happen?")
+            new DisplayMode(ActivityType.Playing, "Idling...", "Waiting for something to happen?", new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new ActivityBuilder.Asset("idle", "Waiting for something to happen?")
             )),
-            new DisplayMode(Activity.Type.Playing, "Playing singleplayer", "%world_name%", new Activity.Assets(
-                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
-                    new Activity.Asset("%dimension_id%", "In %dimension%")
+            new DisplayMode(ActivityType.Playing, "Playing singleplayer", "%world_name%", new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new ActivityBuilder.Asset("%dimension_id%", "In %dimension%")
             )),
-            new DisplayMode(Activity.Type.Playing, "Playing online", "%server_name%", new Activity.Assets(
-                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
-                    new Activity.Asset("%dimension_id%", "In %dimension%")
+            new DisplayMode(ActivityType.Playing, "Playing online", "%server_name%", new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new ActivityBuilder.Asset("%dimension_id%", "In %dimension%")
             )),
-            new DisplayMode(Activity.Type.Playing, "Playing online", "In a realm...", new Activity.Assets(
-                    new Activity.Asset("minecraft", "%player_name%: Minecraft %version%"),
-                    new Activity.Asset("%dimension_id%", "In %dimension%")
+            new DisplayMode(ActivityType.Playing, "Playing online", "In a realm...", new ActivityBuilder.Assets(
+                    new ActivityBuilder.Asset("minecraft", "%player_name%: Minecraft %version%"),
+                    new ActivityBuilder.Asset("%dimension_id%", "In %dimension%")
             )),
             new HashMap<>(),
             new HashMap<>()
