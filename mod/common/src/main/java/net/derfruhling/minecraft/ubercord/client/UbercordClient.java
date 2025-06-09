@@ -12,6 +12,7 @@ import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.ClientResult;
 import net.derfruhling.discord.socialsdk4j.Relationship;
+import net.derfruhling.discord.socialsdk4j.SocialSdk;
 import net.derfruhling.discord.socialsdk4j.User;
 import net.derfruhling.minecraft.ubercord.gui.GuildSelectScreen;
 import net.derfruhling.minecraft.ubercord.packets.*;
@@ -25,6 +26,7 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
+import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -48,6 +50,11 @@ public final class UbercordClient {
     }
 
     public static void init() {
+        SocialSdk.initialize()
+                .tryEnvironment()
+                .tryDirectoryOrClasspath(Path.of("ubercord", "natives"))
+                .finish();
+
         integration = new SocialSdkIntegration();
 
         NetworkManager.registerReceiver(
