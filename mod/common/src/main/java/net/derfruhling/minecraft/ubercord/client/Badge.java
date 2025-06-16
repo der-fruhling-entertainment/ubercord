@@ -23,13 +23,16 @@ public enum Badge {
     OFFLINE_BADGE("e", 0x848484),
     PLAYING_BADGE("h", 0x25c9f7),
     PLAYING_ELSEWHERE_BADGE("i", 0x1d8caa),
+    STREAMING_BADGE("h", 0xc24efc),
     GAME_FRIEND_BADGE("j", 0xf537fc),
     DISCORD_FRIEND_BADGE("j", 0x7738ff),
     INCOMING_FRIEND_REQUEST("j", 0x3df261),
     OUTGOING_FRIEND_REQUEST("j", 0xd1d1d1),
     BLOCKED_BADGE("k", 0xfc2a38),
     UNKNOWN_USER_BADGE("?", 0xd1d1d1),
-    INVALID_BADGE("?", 0xfc2a38);
+    INVALID_BADGE("?", 0xfc2a38),
+    COLLAPSED_CATEGORY_BADGE(">", 0xffffff),
+    OPENED_CATEGORY_BADGE("v", 0xffffff);
 
     private interface ComponentCreator {
         Component create(String ign, String discord, long discordId, @Nullable Relationship relationship);

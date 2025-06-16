@@ -1,5 +1,6 @@
 package net.derfruhling.minecraft.ubercord.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
@@ -10,15 +11,19 @@ import dev.architectury.event.events.client.ClientLifecycleEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
+import dev.architectury.registry.client.keymappings.KeyMappingRegistry;
 import net.derfruhling.discord.socialsdk4j.ClientResult;
 import net.derfruhling.discord.socialsdk4j.Relationship;
 import net.derfruhling.discord.socialsdk4j.SocialSdk;
 import net.derfruhling.discord.socialsdk4j.User;
 import net.derfruhling.discord.socialsdk4j.loader.ClasspathLoader;
+import net.derfruhling.minecraft.ubercord.gui.FriendListScreen;
 import net.derfruhling.minecraft.ubercord.gui.GuildSelectScreen;
 import net.derfruhling.minecraft.ubercord.packets.*;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.options.controls.ControlsScreen;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -49,10 +54,14 @@ public final class UbercordClient {
         UbercordClient.clothConfigPresent = clothConfigPresent;
     }
 
+    public static final KeyMapping FRIENDS_LIST_KEYMAPPING = new KeyMapping("key.ubercord.friend_list", InputConstants.Type.KEYSYM, InputConstants.KEY_GRAVE, "category.ubercord");
+
     public static void init() {
         SocialSdk.initialize(new ClasspathLoader());
 
         integration = new SocialSdkIntegration();
+
+        KeyMappingRegistry.register(FRIENDS_LIST_KEYMAPPING);
 
         NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
@@ -243,6 +252,12 @@ public final class UbercordClient {
                             return 1;
                         }
                     }));
+        });
+
+        ClientTickEvent.CLIENT_POST.register(client -> {
+            while (FRIENDS_LIST_KEYMAPPING.consumeClick()) {
+                client.setScreen(new FriendListScreen());
+            }
         });
 
         ClientLifecycleEvent.CLIENT_STARTED.register(client -> {

@@ -151,5 +151,8 @@
   "ubercord.server.link_start": "Ensuring the needed permissions are set for linking...",
   "ubercord.server.no_bot_token": "The server must have a bot token to perform this action (e.g. it cannot be done with the default Ubercord app)",
   "ubercord.server.http_error": "HTTP error! %d %s",
-  "ubercord.discord.connected_game_settings.failed": "Failed to open connected game settings in Discord, could you be using a provisional account?"
+  "ubercord.discord.connected_game_settings.failed": "Failed to open connected game settings in Discord, could you be using a provisional account?",
+  "ubercord.friend_list.title": "Friend List",
+  "key.ubercord.friend_list": "Open friend list",
+  "category.ubercord": "übercord"
 }

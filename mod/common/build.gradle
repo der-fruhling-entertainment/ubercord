@@ -3,7 +3,7 @@ architectury {
 }
 
 dependencies {
-    implementation platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
+    implementation(platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")) { changing = true }
 
     // We depend on Fabric Loader here to use the Fabric @Environment annotations,
     // which get remapped to the correct annotations on each platform.
@@ -20,5 +20,5 @@ dependencies {
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
-    api 'net.derfruhling.discord:socialsdk4j'
+    api('net.derfruhling.discord:socialsdk4j') { changing = true }
 }

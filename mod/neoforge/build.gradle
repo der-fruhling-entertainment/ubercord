@@ -35,8 +35,8 @@ repositories {
 }
 
 dependencies {
-    implementation platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
-    shadowBundle platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")
+    implementation(platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")) { changing = true }
+    shadowBundle(platform("net.derfruhling.discord:socialsdk4j-bom:${project.socialsdk4j_version}")) { changing = true }
 
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
 
@@ -48,24 +48,24 @@ dependencies {
     implementation 'com.auth0:java-jwt:4.5.0'
     implementation 'com.auth0:jwks-rsa:0.22.1'
 
-    api 'net.derfruhling.discord:socialsdk4j'
-    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux'
-    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows'
-    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos'
+    api('net.derfruhling.discord:socialsdk4j') { changing = true }
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux', changing: true
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows', changing: true
+    runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos', changing: true
     runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'linux'
     runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'windows'
     runtimeOnly group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'macos'
 
     common(project(path: ':mod:common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':mod:common', configuration: 'transformProductionNeoForge')
-    shadowBundle 'net.derfruhling.discord:socialsdk4j'
+    shadowBundle('net.derfruhling.discord:socialsdk4j') { changing = true }
     shadowBundle 'com.auth0:java-jwt:4.5.0'
     shadowBundle 'com.auth0:jwks-rsa:0.22.1'
 
     // TODO download automatically?
-    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux'
-    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows'
-    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos'
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'linux', changing: true
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'windows', changing: true
+    shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk4j', classifier: 'macos', changing: true
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'linux'
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'windows'
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'macos'

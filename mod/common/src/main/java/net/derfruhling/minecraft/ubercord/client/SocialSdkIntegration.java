@@ -10,9 +10,7 @@ import net.derfruhling.minecraft.ubercord.ChannelSecret;
 import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.derfruhling.minecraft.ubercord.JoinSecret;
-import net.derfruhling.minecraft.ubercord.gui.DiesOnChannelChange;
-import net.derfruhling.minecraft.ubercord.gui.SuddenInviteScreen;
-import net.derfruhling.minecraft.ubercord.gui.SuddenJoinRequestScreen;
+import net.derfruhling.minecraft.ubercord.gui.*;
 import net.derfruhling.minecraft.ubercord.packets.BeginProvisionalAuthorizationFlow;
 import net.derfruhling.minecraft.ubercord.packets.NotifyAboutUserId;
 import net.derfruhling.minecraft.ubercord.packets.RequestJoinLobby;
@@ -83,11 +81,16 @@ public class SocialSdkIntegration {
     private DisplayConfig displayConfig = defaultConfig;
     private final PlayerState globalPlayerState = PlayerState.loadMaybe(Util.NIL_UUID);
     private @Nullable PlayerState serverPlayerState = null;
+    private Avatar avatar = null;
 
     private final long start = Instant.now().getEpochSecond() * 1000;
 
     public ClientConfig getConfig() {
         return config;
+    }
+
+    public Avatar getAvatar() {
+        return avatar;
     }
 
     public void setConfig(ClientConfig config) {
@@ -145,17 +148,21 @@ public class SocialSdkIntegration {
                         joinLobby(JoinedChannel.Context.Global, name);
                     }
 
+                    avatar = new Avatar(Minecraft.getInstance(), self.id, self.getAvatar());
+
                     log.info("Executing {} deferred runnables", whenReady.size());
                     whenReady.forEach(Runnable::run);
                     whenReady.clear();
                 } else if (isReady.get()) {
+                    isReady.set(false);
+
                     if(chatFeaturesEnabled) {
                         generatePrebuiltMessage(Badge.YELLOW_EXCLAIM, Component.translatable("ubercord.auth.disconnected"));
                         generateChatAuthSelection(defaultClientId);
                         NetworkManager.sendToServer(SetUserIdPacket.DISCARD);
                     }
 
-                    isReady.set(false);
+                    avatar = null;
                 }
             }
         });
@@ -1030,11 +1037,17 @@ public class SocialSdkIntegration {
             refs.put(messageId, new MessageRef(msg, root));
         }
 
-        Minecraft.getInstance().gui.getChat().addMessage(
-                root,
-                null,
-                null
-        );
+        Minecraft client = Minecraft.getInstance();
+        if(client.screen == null) {
+            client.gui.getChat().addMessage(
+                    root,
+                    null,
+                    null
+            );
+        } else if(client.screen instanceof HandlesNewMessage) {
+            Message m = getClient().getMessage(messageId);
+            ((HandlesNewMessage) client.screen).onNewUserMessage(source, m);
+        }
     }
 
     public void generateSentDmMessage(
