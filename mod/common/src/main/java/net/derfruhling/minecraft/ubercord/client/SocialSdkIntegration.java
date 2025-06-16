@@ -65,7 +65,7 @@ public class SocialSdkIntegration {
     private static final Logger log = LogManager.getLogger(SocialSdkIntegration.class);
 
     private record Cache(String accessToken, String refreshToken, boolean isProvisional) {}
-    
+
     private final Client client = new Client();
 
     private @Nullable JoinedChannel currentChannel = null;
@@ -232,22 +232,7 @@ public class SocialSdkIntegration {
             @Nullable User author = msg.getAuthor();
             @Nullable User recipient = msg.getRecipient();
 
-            String authorName;
-            Badge authorBadge;
             Channel channel = msg.getChannel();
-
-            if(author != null && onlinePlayersById.containsKey(author.id) && msg.isSentFromGame()) {
-                authorName = author.getDisplayName();
-                authorBadge = Badge.ONLINE_USER;
-            } else {
-                if(author != null) {
-                    authorName = author.getDisplayName();
-                    authorBadge = author.getUsername().equals("discord") ? Badge.RED_EXCLAIM : Badge.OFFLINE_USER;
-                } else {
-                    authorName = "<webhook>";
-                    authorBadge = Badge.OFFLINE_USER;
-                }
-            }
 
             if(msg.getDisclosureType() != null) {
                 switch (msg.getDisclosureType()) {
@@ -255,23 +240,16 @@ public class SocialSdkIntegration {
                 }
             } else {
                 if(channel != null && channel.type().isDm() && recipient != null) {
-                    Badge recipientBadge = onlinePlayersById.containsKey(recipient.id)
-                            ? Badge.ONLINE_USER
-                            : Badge.OFFLINE_USER;
-                    OnlinePlayer ign = onlinePlayersById.get(msg.getAuthorId());
-                    Relationship relationship = client.getRelationship(msg.getRecipientId());
                     if(self.id == msg.getAuthorId()) {
-                        generateSentDmMessage(messageId, ign != null ? ign.username : null, recipient.getDisplayName(), recipientBadge, relationship, recipient.id, msg.getContent());
+                        generateSentDmMessage(messageId, recipient, msg.getContent());
                     } else {
-                        generateDmMessage(messageId, ign != null ? ign.username : null, recipient.getDisplayName(), recipientBadge, relationship, recipient.id, msg.getContent());
+                        generateDmMessage(messageId, recipient, msg.getContent());
                     }
                 } else {
                     Lobby lobby = msg.getLobby();
                     if(lobby == null) return;
 
-                    Relationship relationship = msg.getAuthorId() != self.id ? client.getRelationship(msg.getAuthorId()) : null;
-                    OnlinePlayer ign = onlinePlayersById.get(msg.getAuthorId());
-                    receiveMessage(lobby.id, ign != null ? ign.username : null, authorName, msg.getAuthorId(), authorBadge, relationship, msg.getContent(), messageId);
+                    receiveMessage(lobby.id, author, msg.getContent(), messageId);
                 }
             }
         });
@@ -372,7 +350,7 @@ public class SocialSdkIntegration {
                     if(Minecraft.getInstance().player != null) {
                         User user = client.getUser(invite.senderId());
                         assert user != null;
-                        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.invite.new", user.getDisplayName())
+                        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.invite.new", user.getDisplayName())
                                 .append("\n\n")
                                 .append(Component.translatable("ubercord.invite.accept")
                                         .withStyle(Style.EMPTY
@@ -393,7 +371,7 @@ public class SocialSdkIntegration {
                     if(Minecraft.getInstance().player != null) {
                         User user = client.getUser(invite.senderId());
                         assert user != null;
-                        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.invite.join_request", user.getDisplayName())
+                        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.invite.join_request", user.getDisplayName())
                                         .append("\n\n")
                                         .append(Component.translatable("ubercord.invite.accept")
                                                 .withStyle(Style.EMPTY
@@ -528,7 +506,7 @@ public class SocialSdkIntegration {
 
         client.createOrJoinLobby(secret, lobbyMeta, memberMeta, (result, lobbyId) -> {
             if(!result.isSuccess()) {
-                generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.generic.error", result.message()));
+                generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.generic.error", result.message()));
             }
         });
     }
@@ -780,7 +758,7 @@ public class SocialSdkIntegration {
         String state = Minecraft.getInstance().getUser().getName() + ":" + new Random().nextLong();
         CodeVerifier ver = client.createAuthorizationCodeVerifier();
 
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.discord.begin"));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.discord.begin"));
         client.authorize(clientId, chatFeaturesEnabled ? getCommunicationsScopes() : Client.PRESENCE_SCOPES, state, ver.challenge(), (result, code, redirectUri) -> {
             if (result.isSuccess()) {
                 client.getToken(clientId, code, ver.verifier(), redirectUri, (result1, accessToken, refreshToken, type, expiresIn, scopes) -> {
@@ -807,7 +785,7 @@ public class SocialSdkIntegration {
     }
 
     private void onTokenGet(long clientId, String accessToken, String refreshToken, boolean isProvisional) {
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.authorization_successful"));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.authorization_successful"));
         Cache cache = new Cache(accessToken, refreshToken, isProvisional);
 
         File cacheDir = new File(Minecraft.getInstance().gameDirectory, "ubercord");
@@ -822,7 +800,7 @@ public class SocialSdkIntegration {
 
         client.updateToken(AuthorizationTokenType.Bearer, cache.accessToken, result2 -> {
             if (result2.isSuccess()) {
-                generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.connecting"));
+                generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.connecting"));
                 client.connect();
             } else {
                 generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.update_token_error", result2.message()));
@@ -850,11 +828,11 @@ public class SocialSdkIntegration {
         }
 
         if(!NetworkManager.canServerReceive(BeginProvisionalAuthorizationFlow.TYPE)) {
-            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.not_supported"));
+            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.not_supported"));
             return;
         }
 
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.begin"));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.begin"));
         isWaitingForProvisional.set(true);
         provisionalState.set(clientId + ":" + new Random().nextLong());
         NetworkManager.sendToServer(new BeginProvisionalAuthorizationFlow(provisionalState.get()));
@@ -879,16 +857,16 @@ public class SocialSdkIntegration {
 
         isWaitingForProvisional.set(false);
         if(secret.isEmpty()) {
-            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_server"));
+            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_server"));
             return;
         }
 
         if(secret.equals("OFFLINE")) {
-            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_offline"));
+            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_offline"));
             return;
         }
 
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.got_token"));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.got_token"));
         LocalPlayer player = Minecraft.getInstance().player;
         assert player != null;
         try {
@@ -904,16 +882,16 @@ public class SocialSdkIntegration {
                             .build(), HttpResponse.BodyHandlers.ofString())
                     .handleAsync((response, throwable) -> {
                         if(throwable != null) {
-                            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable.getMessage()));
+                            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable.getMessage()));
                         } else if(response.statusCode() != 200) {
-                            generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
+                            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
                         } else {
                             client.getProvisionalToken(clientId, ExternalAuthType.OpenIDConnect, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
                                 log.info("scopes: {}", String.join(" ", scopes));
                                 if (result.isSuccess()) {
                                     onTokenGet(clientId, accessToken, refreshToken, true);
                                 } else {
-                                    generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.auth.provisional.failed_token", result.message()));
+                                    generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_token", result.message()));
                                     generateChatAuthSelection(clientId);
                                 }
                             });
@@ -972,14 +950,14 @@ public class SocialSdkIntegration {
         });
     }
 
-    private void receiveMessage(long lobbyId, @Nullable String ign, String username, long userId, Badge badge, @Nullable Relationship relationshipWithSource, String message, long messageId) {
+    private void receiveMessage(long lobbyId, User source, String message, long messageId) {
         if(currentChannel != null && currentChannel.lobbyId() == lobbyId) {
-            generateMainLobbyMessage(messageId, ign, username, badge, relationshipWithSource, userId, message);
+            generateMainLobbyMessage(messageId, source, message);
         } else {
             Lobby lobby = client.getLobby(lobbyId);
             if(lobby != null) {
                 Map<String, String> meta = lobby.getMetadata();
-                generateLobbyMessage(messageId, meta.get("channel-name"), ign, username, badge, relationshipWithSource, userId, message);
+                generateLobbyMessage(messageId, meta.get("channel-name"), source, message);
             }
         }
     }
@@ -1027,25 +1005,26 @@ public class SocialSdkIntegration {
 
     public void generateDmMessage(
             long messageId,
-            @Nullable String sourceIgn,
-            String sourceUsername,
-            Badge sourceBadge,
-            @Nullable Relationship relationshipWithSource,
-            long sourceUserId,
+            User source,
             String message
     ) {
+        OnlinePlayer player = onlinePlayersById.get(source.id);
+
         MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("[")
-                .append(sourceBadge.create(sourceIgn, sourceUsername, sourceUserId, relationshipWithSource))
+                .append(player != null
+                        ? Badge.ONLINE_USER_MESSAGE.create(player.username, source.getDisplayName(), source.id, source.getRelationship())
+                        : Badge.OFFLINE_USER_MESSAGE.create(null, source.getDisplayName(), source.id, source.getRelationship()))
+                .append(Badge.componentForUser(source, player != null ? player.username : null))
                 .append(" → ")
                 .append(Component.translatable("ubercord.chat.you"))
                 .append("] ")
                 .append(msg)
                 .append("  ")
                 .append(Badge.REPLY_BUTTON.create()
-                        .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + sourceUserId + " "))));
+                        .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + source.id + " "))));
 
         if(messageId != 0) {
             refs.put(messageId, new MessageRef(msg, root));
@@ -1060,20 +1039,21 @@ public class SocialSdkIntegration {
 
     public void generateSentDmMessage(
             long messageId,
-            @Nullable String targetIgn,
-            String targetUsername,
-            Badge targetBadge,
-            @Nullable Relationship relationshipWithTarget,
-            long targetUserId,
+            User target,
             String message
     ) {
+        OnlinePlayer player = onlinePlayersById.get(target.id);
+
         MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("[")
                 .append(Component.translatable("ubercord.chat.you"))
                 .append(" → ")
-                .append(targetBadge.create(targetIgn, targetUsername, targetUserId, relationshipWithTarget))
+                .append(player != null
+                    ? Badge.ONLINE_USER_MESSAGE.create(player.username, target.getDisplayName(), target.id, target.getRelationship())
+                    : Badge.OFFLINE_USER_MESSAGE.create(null, target.getDisplayName(), target.id, target.getRelationship()))
+                .append(Badge.componentForUser(target, player != null ? player.username : null))
                 .append("] ")
                 .append(msg);
 
@@ -1091,13 +1071,11 @@ public class SocialSdkIntegration {
     public void generateLobbyMessage(
             long messageId,
             String lobbyName,
-            @Nullable String sourceIgn,
-            String sourceUsername,
-            Badge sourceBadge,
-            @Nullable Relationship relationshipWithSource,
-            long sourceUserId,
+            User source,
             String message
     ) {
+        OnlinePlayer player = onlinePlayersById.get(source.id);
+
         MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
@@ -1107,7 +1085,10 @@ public class SocialSdkIntegration {
                                 .withColor(ChatFormatting.BLUE)
                                 .withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "~" + lobbyName + " "))))
                 .append(" [")
-                .append(sourceBadge.create(sourceIgn, sourceUsername, sourceUserId, relationshipWithSource))
+                .append(player != null
+                        ? Badge.ONLINE_USER_MESSAGE.create(player.username, source.getDisplayName(), source.id, source.getRelationship())
+                        : Badge.OFFLINE_USER_MESSAGE.create(null, source.getDisplayName(), source.id, source.getRelationship()))
+                .append(Badge.componentForUser(source, player != null ? player.username : null))
                 .append("] ")
                 .append(msg);
 
@@ -1124,18 +1105,19 @@ public class SocialSdkIntegration {
 
     public void generateMainLobbyMessage(
             long messageId,
-            @Nullable String sourceIgn,
-            String sourceUsername,
-            Badge sourceBadge,
-            @Nullable Relationship relationshipWithSource,
-            long sourceUserId,
+            User source,
             String message
     ) {
+        OnlinePlayer player = onlinePlayersById.get(source.id);
+
         MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("[")
-                .append(sourceBadge.create(sourceIgn, sourceUsername, sourceUserId, relationshipWithSource))
+                .append(player != null
+                        ? Badge.ONLINE_USER_MESSAGE.create(player.username, source.getDisplayName(), source.id, source.getRelationship())
+                        : Badge.OFFLINE_USER_MESSAGE.create(null, source.getDisplayName(), source.id, source.getRelationship()))
+                .append(Badge.componentForUser(source, player != null ? player.username : null))
                 .append("] ")
                 .append(msg);
 
@@ -1195,13 +1177,13 @@ public class SocialSdkIntegration {
     public void generatePartyJoinMessage(
             String partyName
     ) {
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.party.join", partyName));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.party.join", partyName));
     }
 
     public void generatePartyLeaveMessage(
             String partyName
     ) {
-        generatePrebuiltMessage(Badge.YELLOW_DOT, Component.translatable("ubercord.party.leave", partyName));
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.party.leave", partyName));
     }
 
     public void generateChannelSwitchMessage(

@@ -4,7 +4,7 @@
       "type": "bitmap",
       "ascent": 7,
       "chars": [
-        "abcd"
+        "acdefghijk?"
       ],
       "file": "ubercord:font/icon.png"
     }
