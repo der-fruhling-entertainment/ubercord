@@ -72,13 +72,6 @@ public final class UbercordClient {
 
         NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
-                ExchangeProvisionalSecret.TYPE,
-                ExchangeProvisionalSecret.STREAM_CODEC,
-                (value, context) -> integration.completeProvisionalExchange(value.secret())
-        );
-
-        NetworkManager.registerReceiver(
-                NetworkManager.s2c(),
                 NotifyAboutUserId.TYPE,
                 NotifyAboutUserId.STREAM_CODEC,
                 (value, context) -> integration.updatePlayer(value)

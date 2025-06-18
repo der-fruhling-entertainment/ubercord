@@ -3,7 +3,6 @@ package net.derfruhling.minecraft.ubercord.client;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
-import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.*;
 import net.derfruhling.minecraft.ubercord.ChannelSecret;
@@ -11,7 +10,6 @@ import net.derfruhling.minecraft.ubercord.DisplayConfig;
 import net.derfruhling.minecraft.ubercord.DisplayMode;
 import net.derfruhling.minecraft.ubercord.JoinSecret;
 import net.derfruhling.minecraft.ubercord.gui.*;
-import net.derfruhling.minecraft.ubercord.packets.BeginProvisionalAuthorizationFlow;
 import net.derfruhling.minecraft.ubercord.packets.NotifyAboutUserId;
 import net.derfruhling.minecraft.ubercord.packets.RequestJoinLobby;
 import net.derfruhling.minecraft.ubercord.packets.SetUserIdPacket;
@@ -24,15 +22,14 @@ import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
-import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.multiplayer.*;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.protocol.common.ClientboundTransferPacket;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.ProfilePublicKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Contract;
@@ -47,8 +44,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -821,29 +817,85 @@ public class SocialSdkIntegration {
     private long clientId = 0;
 
     void authorizeProvisional(long clientId) {
-        if(Minecraft.getInstance().player == null) {
-            ClientPlayerEvent.ClientPlayerJoin event = new ClientPlayerEvent.ClientPlayerJoin() {
-                @Override
-                public void join(LocalPlayer player) {
-                    SocialSdkIntegration.this.authorizeProvisional(clientId);
-                    ClientPlayerEvent.CLIENT_PLAYER_JOIN.unregister(this);
-                }
-            };
-
-            ClientPlayerEvent.CLIENT_PLAYER_JOIN.register(event);
-            return;
-        }
-
-        if(!NetworkManager.canServerReceive(BeginProvisionalAuthorizationFlow.TYPE)) {
-            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.not_supported"));
-            return;
-        }
-
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.begin"));
-        isWaitingForProvisional.set(true);
-        provisionalState.set(clientId + ":" + new Random().nextLong());
-        NetworkManager.sendToServer(new BeginProvisionalAuthorizationFlow(provisionalState.get()));
         this.clientId = clientId;
+
+        LocalPlayer player = Minecraft.getInstance().player;
+        assert player != null;
+        try {
+            Minecraft m = Minecraft.getInstance();
+            ProfileKeyPairManager mgr = m.getProfileKeyPairManager();
+
+            if(!(mgr instanceof AccountProfileKeyPairManager)) {
+                throw new OfflineException("Offline mode is not supported");
+            }
+
+            mgr.prepareKeyPair().handleAsync((profileKeyPair, throwable) -> {
+                try {
+                    if(profileKeyPair.isEmpty()) {
+                        throw new OfflineException("Offline mode is not supported");
+                    }
+
+                    PrivateKey privateKey = profileKeyPair.get().privateKey();
+                    ProfilePublicKey profilePublicKey = profileKeyPair.get().publicKey();
+
+                    String bodyText = new Gson().toJson(new ProvisionalRequest(
+                            player.getName().getString(),
+                            player.getUUID(),
+                            profilePublicKey.data().expiresAt().toEpochMilli()
+                    ));
+
+                    Signature signature = Signature.getInstance("SHA256withRSA");
+                    signature.initSign(privateKey);
+                    signature.update(bodyText.getBytes(StandardCharsets.UTF_8));
+                    String signatureText = Base64.getUrlEncoder().encodeToString(signature.sign());
+                    String publicKeyText = Base64.getUrlEncoder().encodeToString(profilePublicKey.data().key().getEncoded());
+                    String publicKeySignatureText = Base64.getUrlEncoder().encodeToString(profilePublicKey.data().keySignature());
+
+                    log.info("Interacting with the provisional service");
+                    http.sendAsync(HttpRequest.newBuilder()
+                                    .POST(HttpRequest.BodyPublishers.ofString(
+                                            bodyText
+                                    ))
+                                    .uri(URI.create("https://ubercord.derfruhling.net/authorize"))
+                                    .header("X-Signature", signatureText)
+                                    .header("X-PublicKey", publicKeyText)
+                                    .header("X-PublicKeySignature", publicKeySignatureText)
+                                    .header("Content-Type", "application/json")
+                                    .header("Accept", "text/plain")
+                                    .build(), HttpResponse.BodyHandlers.ofString())
+                            .handleAsync((response, throwable1) -> {
+                                if(throwable1 != null) {
+                                    generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable1.getMessage()));
+                                } else if(response.statusCode() != 200) {
+                                    generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
+                                } else {
+                                    generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.got_token"));
+                                    client.getProvisionalToken(clientId, ExternalAuthType.OpenIDConnect, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
+                                        if (result.isSuccess()) {
+                                            log.info("scopes: {}", String.join(" ", scopes));
+                                            onTokenGet(clientId, accessToken, refreshToken, true);
+                                        } else {
+                                            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_token", result.message()));
+                                            generateChatAuthSelection(clientId);
+                                        }
+                                    });
+                                }
+
+                                return null;
+                            });
+                } catch (OfflineException e) {
+                    generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.provisional.offline_mode_unsupported"));
+                } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
+                    log.error("Encountered error while attempting provisional flow", e);
+                    throw new RuntimeException(e);
+                }
+
+                return null;
+            });
+        } catch (OfflineException e) {
+            generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.provisional.offline_mode_unsupported"));
+        }
     }
 
     private record ProvisionalPostRequest(
@@ -856,58 +908,6 @@ public class SocialSdkIntegration {
     private static class OfflineException extends RuntimeException {
         public OfflineException(String message) {
             super(message);
-        }
-    }
-
-    void completeProvisionalExchange(String secret) {
-        if(!isWaitingForProvisional.get()) return;
-
-        isWaitingForProvisional.set(false);
-        if(secret.isEmpty()) {
-            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_server"));
-            return;
-        }
-
-        if(secret.equals("OFFLINE")) {
-            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_offline"));
-            return;
-        }
-
-        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.got_token"));
-        LocalPlayer player = Minecraft.getInstance().player;
-        assert player != null;
-        try {
-            http.sendAsync(HttpRequest.newBuilder()
-                            .POST(HttpRequest.BodyPublishers.ofString(
-                                    new Gson().toJson(new ProvisionalPostRequest(
-                                            player.getUUID(),
-                                            player.getName().getString(),
-                                            secret
-                                    ))
-                            ))
-                            .uri(URI.create("https://maximum-honest-cat.ngrok-free.app/auth-client"))
-                            .build(), HttpResponse.BodyHandlers.ofString())
-                    .handleAsync((response, throwable) -> {
-                        if(throwable != null) {
-                            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable.getMessage()));
-                        } else if(response.statusCode() != 200) {
-                            generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
-                        } else {
-                            client.getProvisionalToken(clientId, ExternalAuthType.OpenIDConnect, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
-                                log.info("scopes: {}", String.join(" ", scopes));
-                                if (result.isSuccess()) {
-                                    onTokenGet(clientId, accessToken, refreshToken, true);
-                                } else {
-                                    generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_token", result.message()));
-                                    generateChatAuthSelection(clientId);
-                                }
-                            });
-                        }
-
-                        return null;
-                    });
-        } catch (OfflineException e) {
-            generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.provisional.offline_mode_unsupported"));
         }
     }
 

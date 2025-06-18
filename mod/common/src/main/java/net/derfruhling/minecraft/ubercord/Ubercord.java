@@ -44,7 +44,7 @@ public final class Ubercord {
     private static ServerConfig serverConfig;
     private static @Nullable AuthenticationConfig authConfig;
 
-    static final JwkProvider jwks = new JwkProviderBuilder("https://maximum-honest-cat.ngrok-free.app/")
+    static final JwkProvider jwks = new JwkProviderBuilder("https://ubercord.derfruhling.net/")
             .cached(10, 24, TimeUnit.HOURS)
             .rateLimited(10, 1, TimeUnit.MINUTES)
             .build();
@@ -81,7 +81,7 @@ public final class Ubercord {
                     @Override
                     protected PasswordAuthentication getPasswordAuthentication() {
                         return switch (getRequestingHost()) {
-                            case "ubercord.derfruhling.net", "maximum-honest-cat.ngrok-free.app" ->
+                            case "ubercord.derfruhling.net" ->
                                     new PasswordAuthentication(authConfig.clientId(), authConfig.clientKey().toCharArray());
                             default -> null;
                         };
@@ -198,42 +198,6 @@ public final class Ubercord {
                 );
             }
         });
-
-        NetworkManager.registerReceiver(
-                NetworkManager.c2s(),
-                BeginProvisionalAuthorizationFlow.TYPE,
-                BeginProvisionalAuthorizationFlow.STREAM_CODEC,
-                (value, context) -> {
-                    // TODO config
-                    if(context.getPlayer().getGameProfile().getId().version() != 4) {
-                        context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("OFFLINE")));
-                    }
-
-                    homeHttp.sendAsync(HttpRequest.newBuilder()
-                                    .POST(HttpRequest.BodyPublishers.ofString(new Gson().toJson(new AuthorizeUserRequest(
-                                            context.getPlayer().getUUID(),
-                                            value.state()
-                                    ))))
-                                    .uri(URI.create("https://maximum-honest-cat.ngrok-free.app/auth-server"))
-                                    .build(), HttpResponse.BodyHandlers.ofString())
-                            .handleAsync((response, throwable) -> {
-                                if (throwable != null) {
-                                    log.error("Failed to authorize user {}", context.getPlayer(), throwable);
-                                    context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("")));
-                                    homeHttp.close();
-                                    homeHttp = createHomeHttp();
-                                } else if(response.statusCode() != 200) {
-                                    context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret("")));
-                                } else {
-                                    String secret = response.body();
-                                    context.queue(() -> NetworkManager.sendToPlayer((ServerPlayer)context.getPlayer(), new ExchangeProvisionalSecret(secret)));
-                                }
-
-                                return null;
-                            })
-                            .thenRun(homeHttp::close);
-                }
-        );
     }
 
     public static void initDedicatedServer() {
@@ -245,11 +209,6 @@ public final class Ubercord {
         NetworkManager.registerS2CPayloadType(
                 JoinLobby.TYPE,
                 JoinLobby.STREAM_CODEC
-        );
-
-        NetworkManager.registerS2CPayloadType(
-                ExchangeProvisionalSecret.TYPE,
-                ExchangeProvisionalSecret.STREAM_CODEC
         );
 
         NetworkManager.registerS2CPayloadType(
