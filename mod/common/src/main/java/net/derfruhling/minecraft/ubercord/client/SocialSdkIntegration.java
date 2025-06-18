@@ -860,6 +860,13 @@ public class SocialSdkIntegration {
     }
 
     void authorizeProvisional(long clientId) {
+        config.setHasAgreedToProvisionalServiceUsage(true);
+        try {
+            config.save();
+        } catch (IOException e) {
+            log.error("Failed to record user consent to provisional service usage in config, you will be asked again next time!", e);
+        }
+
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.begin"));
         this.clientId = clientId;
 
