@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class ConfigFactory {
-    public static Screen create(@Nullable Screen parent, ClientConfig config) {
+    public static Screen create(@Nullable Screen parent, ClientConfig oldConfig) {
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(Component.translatable("ubercord.config.client.title"));
@@ -39,7 +39,7 @@ public class ConfigFactory {
         AtomicLong defaultClientId = new AtomicLong();
 
         ConfigCategory basic = builder.getOrCreateCategory(Component.translatable("ubercord.config.client.category"));
-        basic.addEntry(entryBuilder.startLongField(Component.translatable("ubercord.config.client.category.client_id"), config.getDefaultClientId())
+        basic.addEntry(entryBuilder.startLongField(Component.translatable("ubercord.config.client.category.client_id"), oldConfig.getDefaultClientId())
                 .setDefaultValue(SocialSdkIntegration.BUILTIN_CLIENT_ID)
                 .setSaveConsumer(defaultClientId::set)
                 .build());
@@ -47,8 +47,8 @@ public class ConfigFactory {
         AtomicReference<DisplayMode> newTitleDisplay = new AtomicReference<>();
         AtomicReference<DisplayConfig> newDisplayConfig = new AtomicReference<>();
 
-        basic.addEntry(addDisplayMode(entryBuilder, false, config.getTitleDisplay(), Component.translatable("ubercord.config.client.title_display"), newTitleDisplay::set));
-        basic.addEntry(addDisplayConfig(entryBuilder, true, config.getDefaultConfig(), newDisplayConfig::set));
+        basic.addEntry(addDisplayMode(entryBuilder, false, oldConfig.getTitleDisplay(), Component.translatable("ubercord.config.client.title_display"), newTitleDisplay::set));
+        basic.addEntry(addDisplayConfig(entryBuilder, true, oldConfig.getDefaultConfig(), newDisplayConfig::set));
 
         basic.addEntry(new EmptyEntry(0) {
             @Override
@@ -56,7 +56,7 @@ public class ConfigFactory {
                 super.save();
 
                 try {
-                    ClientConfig config = new ClientConfig(defaultClientId.get(), newTitleDisplay.get(), newDisplayConfig.get());
+                    ClientConfig config = new ClientConfig(defaultClientId.get(), newTitleDisplay.get(), newDisplayConfig.get(), oldConfig.hasAgreedToProvisionalServiceUsage());
                     config.save();
 
                     UbercordClient.get().setConfig(config);

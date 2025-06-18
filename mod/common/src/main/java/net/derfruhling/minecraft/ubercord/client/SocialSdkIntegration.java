@@ -756,7 +756,7 @@ public class SocialSdkIntegration {
                 .append("\n")
                 .append(Component.translatable("ubercord.auth.selector.provisional")
                         .withStyle(Style.EMPTY
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize provisional " + clientId))
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize try-provisional " + clientId))
                                 .withColor(ChatFormatting.GRAY)
                                 .withUnderlined(true)))
         );
@@ -821,6 +821,43 @@ public class SocialSdkIntegration {
     private final AtomicBoolean isWaitingForProvisional = new AtomicBoolean(false);
     private final AtomicReference<String> provisionalState = new AtomicReference<>();
     private long clientId = 0;
+
+    boolean hasAgreedToProvisionalDisclaimer() {
+        return config.hasAgreedToProvisionalServiceUsage();
+    }
+
+    void printProvisionalDisclaimer() {
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.disclaimer"));
+
+        // The project really should provide a privacy policy to dictate
+        // exactly what is used and how. Hopefully this effort will be enough.
+        String[] supportedLanguages = {"en_us"};
+        String currentLanguage = Minecraft.getInstance().getLanguageManager().getSelected();
+        String privacyUrl;
+
+        if(Arrays.asList(supportedLanguages).contains(currentLanguage)) {
+            privacyUrl = "https://derfrühling.net/ubercord/privacy/" + currentLanguage;
+        } else {
+            privacyUrl = "https://derfrühling.net/ubercord/privacy/en_us";
+        }
+
+        Minecraft.getInstance().gui.getChat().addMessage(Component.translatable("ubercord.auth.provisional.disclaimer.privacy")
+                .append(Component.literal(privacyUrl).withStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, privacyUrl)).withUnderlined(true).withColor(ChatFormatting.BLUE)))
+                .append("\n\n")
+                .append(Component.translatable("ubercord.auth.provisional.disclaimer.accept")
+                        .withStyle(Style.EMPTY
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize provisional " + clientId))
+                                .withColor(ChatFormatting.GRAY)
+                                .withUnderlined(true)))
+                .append("\n\n")
+                .append(Component.translatable("ubercord.auth.provisional.disclaimer.decline")
+                        .withStyle(Style.EMPTY
+                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize discord " + clientId))
+                                .withColor(0x5865F2)
+                                .withUnderlined(true)))
+                .append("\n")
+        );
+    }
 
     void authorizeProvisional(long clientId) {
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.begin"));

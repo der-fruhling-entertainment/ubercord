@@ -150,7 +150,9 @@ public final class UbercordClient {
                             .then(literal("provisional")
                                     .executes(UbercordClient::authorizeProvisionalAction)
                                     .then(argument("client", longArg())
-                                            .executes(UbercordClient::authorizeProvisionalWithClientIdAction))))
+                                            .executes(UbercordClient::authorizeProvisionalWithClientIdAction)))
+                            .then(literal("try-provisional")
+                                    .executes(UbercordClient::authorizeTryProvisionalAction)))
                     .then(literal("block")
                             .requires(stack -> integration.isChatFeaturesEnabled())
                             .then(literal("add")
@@ -562,6 +564,16 @@ public final class UbercordClient {
 
     private static int authorizeProvisionalAction(CommandContext<ClientCommandSourceStack> context1) {
         integration.authorizeProvisional(integration.defaultClientId);
+        return 0;
+    }
+
+    private static int authorizeTryProvisionalAction(CommandContext<ClientCommandSourceStack> context1) {
+        if(integration.hasAgreedToProvisionalDisclaimer()) {
+            integration.authorizeProvisional(integration.defaultClientId);
+        } else {
+            integration.printProvisionalDisclaimer();
+        }
+
         return 0;
     }
 

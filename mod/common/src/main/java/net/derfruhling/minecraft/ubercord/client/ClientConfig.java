@@ -27,10 +27,13 @@ public class ClientConfig {
 
     private DisplayConfig defaultConfig = DisplayConfig.DEFAULT_CLIENT;
 
-    public ClientConfig(long defaultClientId, DisplayMode titleDisplay, DisplayConfig defaultConfig) {
+    private boolean hasAgreedToProvisionalServiceUsage = false;
+
+    public ClientConfig(long defaultClientId, DisplayMode titleDisplay, DisplayConfig defaultConfig, boolean hasAgreedToProvisionalServiceUsage) {
         this.defaultClientId = defaultClientId;
         this.titleDisplay = titleDisplay;
         this.defaultConfig = defaultConfig;
+        this.hasAgreedToProvisionalServiceUsage = hasAgreedToProvisionalServiceUsage;
     }
 
     public ClientConfig() {}
@@ -63,5 +66,13 @@ public class ClientConfig {
 
     public DisplayConfig getDefaultConfig() {
         return defaultConfig == null ? DisplayConfig.DEFAULT_CLIENT : defaultConfig;
+    }
+
+    public boolean hasAgreedToProvisionalServiceUsage() {
+        return hasAgreedToProvisionalServiceUsage;
+    }
+
+    public void setHasAgreedToProvisionalServiceUsage(boolean hasAgreedToProvisionalServiceUsage) {
+        this.hasAgreedToProvisionalServiceUsage = hasAgreedToProvisionalServiceUsage;
     }
 }
