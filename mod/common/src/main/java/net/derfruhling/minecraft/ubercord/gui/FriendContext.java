@@ -3,6 +3,7 @@ package net.derfruhling.minecraft.ubercord.gui;
 import dev.lambdaurora.spruceui.Position;
 import net.derfruhling.discord.socialsdk4j.Message;
 import net.derfruhling.discord.socialsdk4j.User;
+import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -10,7 +11,7 @@ import java.util.List;
 
 public final class FriendContext implements HandlesNewMessage {
     public final User targetUser;
-    public final Avatar avatar;
+    private Avatar avatar;
     final ChatMessageListWidget messages;
     private final List<ChatMessage> chatMessages = new ArrayList<>();
     private final FriendListScreen friendListScreen;
@@ -61,5 +62,17 @@ public final class FriendContext implements HandlesNewMessage {
         if(index == -1) return chatMessages.getLast();
 
         return chatMessages.get(index - 1);
+    }
+
+    public User getTargetUser() {
+        return targetUser;
+    }
+
+    public Avatar getAvatar() {
+        return avatar;
+    }
+
+    public void reloadAvatar() {
+        avatar = Avatar.forUser(Minecraft.getInstance(), targetUser);
     }
 }

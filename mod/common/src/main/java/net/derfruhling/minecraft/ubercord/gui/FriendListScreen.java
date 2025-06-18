@@ -91,6 +91,16 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
         return textInput;
     }
 
+    public void ensureAvatarsAreReloaded(long userId, boolean isProvisional) {
+        if(!isProvisional) return;
+
+        for (FriendContext context : contexts) {
+            if(context.targetUser.id == userId) {
+                context.reloadAvatar();
+            }
+        }
+    }
+
     private class SideFriendList extends SpruceEntryListWidget<FriendCategoryWidget> {
         private final List<FriendCategoryWidget> categoryWidgets;
 

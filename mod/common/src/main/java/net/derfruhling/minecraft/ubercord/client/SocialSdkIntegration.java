@@ -44,6 +44,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.*;
 import java.time.Instant;
 import java.util.*;
@@ -144,7 +145,7 @@ public class SocialSdkIntegration {
                         joinLobby(JoinedChannel.Context.Global, name);
                     }
 
-                    avatar = new Avatar(Minecraft.getInstance(), self.id, self.getAvatar());
+                    avatar = Avatar.forUser(Minecraft.getInstance(), self);
 
                     log.info("Executing {} deferred runnables", whenReady.size());
                     whenReady.forEach(Runnable::run);
@@ -570,7 +571,18 @@ public class SocialSdkIntegration {
         return onlinePlayers.keySet();
     }
 
-    public void updatePlayer(String username, long userId, boolean isProvisional) {
+    public void updatePlayer(String username, UUID uuid, long userId, boolean isProvisional) {
+        Path playerInfoPath = Path.of("ubercord", "player_list", userId + ".json");
+
+        try {
+            Files.createDirectories(playerInfoPath.getParent());
+            Files.writeString(playerInfoPath, new Gson().toJson(new RemotePlayerInfo(username, uuid)));
+
+            UbercordClient.friendListScreen.ensureAvatarsAreReloaded(userId, isProvisional);
+        } catch (IOException e) {
+            log.error("Failed to save player info for {} (player {} \"{}\")", userId, uuid, username, e);
+        }
+
         OnlinePlayer player = new OnlinePlayer(username, userId, isProvisional);
         onlinePlayers.put(username, player);
         onlinePlayersById.put(userId, player);
@@ -587,7 +599,7 @@ public class SocialSdkIntegration {
         if(packet.userId() == 0) {
             removePlayer(packet.username());
         } else {
-            updatePlayer(packet.username(), packet.userId(), packet.isProvisional());
+            updatePlayer(packet.username(), packet.uuid(), packet.userId(), packet.isProvisional());
         }
     }
 

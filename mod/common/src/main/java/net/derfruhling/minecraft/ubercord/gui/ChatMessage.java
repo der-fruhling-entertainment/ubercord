@@ -50,7 +50,7 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
     }
 
     public ChatMessage(FriendListScreen screen, FriendContext context, Message message) {
-        avatar = context.avatar;
+        avatar = context.getAvatar();
         // TODO IGN
         displayName = Component.empty()
                 .append(context.targetUser.getDisplayName() + " ")
@@ -134,7 +134,7 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
 
         if(shouldRenderAuthorInfo) {
             RenderSystem.enableBlend();
-            graphics.blit(avatar.resourceLocation, x + 4, y + 4, 0, 24, 24, 24, 24, 24, 24);
+            graphics.blit(avatar.getTextureLocation(), x + 4, y + 4, 0, 24, 24, 24, 24, 24, 24);
             RenderSystem.disableBlend();
 
             graphics.drawString(client.font, displayName, x + 32, y + 4, 0xffffffff);

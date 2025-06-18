@@ -26,7 +26,7 @@ public class FriendCardWidget extends AbstractSpruceWidget {
         this.friendListScreen = friendListScreen;
         this.width = 125;
         this.height = 32;
-        this.context = new FriendContext(user, new Avatar(Minecraft.getInstance(), user.id, user.getAvatar()), friendListScreen);
+        this.context = new FriendContext(user, Avatar.forUser(Minecraft.getInstance(), user), friendListScreen);
     }
 
     @Override
@@ -34,7 +34,8 @@ public class FriendCardWidget extends AbstractSpruceWidget {
         int x = position.getX();
         int y = position.getY();
 
-        if(context.avatar.isReady()) {
+        Avatar avatar = context.getAvatar();
+        if(avatar.isReady()) {
             RenderSystem.enableBlend();
 
             if(friendListScreen.getCurrentContext() != null && friendListScreen.getCurrentContext().targetUser.id == user.id) {
@@ -42,7 +43,7 @@ public class FriendCardWidget extends AbstractSpruceWidget {
                 graphics.renderOutline(position.getX(), position.getY(), width - 8, height, ColorUtil.WHITE);
             }
 
-            graphics.blit(context.avatar.resourceLocation, x + 4, y + 4, 0, 24, 24, 24, 24, 24, 24);
+            graphics.blit(avatar.getTextureLocation(), x + 4, y + 4, 0, 24, 24, 24, 24, 24, 24);
             RenderSystem.disableBlend();
         }
 
