@@ -107,9 +107,9 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
         ChatMessage chatMessageBefore = context.messageBefore(this);
         shouldRenderAuthorInfo = chatMessageBefore == null || chatMessageBefore.author != author;
 
-        this.standardMessageHeight = messageHeight + 2;
+        this.standardMessageHeight = messageHeight + 5;
         if (shouldRenderAuthorInfo) {
-            this.standardMessageHeight += 18;
+            this.standardMessageHeight += 12;
         }
 
         if(this.metadata != null) {
