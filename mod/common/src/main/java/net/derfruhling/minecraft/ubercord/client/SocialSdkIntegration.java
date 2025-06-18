@@ -1105,30 +1105,38 @@ public class SocialSdkIntegration {
             User target,
             String message
     ) {
-        OnlinePlayer player = onlinePlayersById.get(target.id);
+        Minecraft client = Minecraft.getInstance();
+        if(client.screen == null) {
+            OnlinePlayer player = onlinePlayersById.get(target.id);
 
-        MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
-        MutableComponent root = Component.empty()
-                .withStyle(ChatFormatting.GRAY)
-                .append("[")
-                .append(Component.translatable("ubercord.chat.you"))
-                .append(" → ")
-                .append(player != null
-                    ? Badge.ONLINE_USER_MESSAGE.create(player.username, target.getDisplayName(), target.id, target.getRelationship())
-                    : Badge.OFFLINE_USER_MESSAGE.create(null, target.getDisplayName(), target.id, target.getRelationship()))
-                .append(Badge.componentForUser(target, player != null ? player.username : null))
-                .append("] ")
-                .append(msg);
+            MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
+            MutableComponent root = Component.empty()
+                    .withStyle(ChatFormatting.GRAY)
+                    .append("[")
+                    .append(Component.translatable("ubercord.chat.you"))
+                    .append(" → ")
+                    .append(player != null
+                            ? Badge.ONLINE_USER_MESSAGE.create(player.username, target.getDisplayName(), target.id, target.getRelationship())
+                            : Badge.OFFLINE_USER_MESSAGE.create(null, target.getDisplayName(), target.id, target.getRelationship()))
+                    .append(Badge.componentForUser(target, player != null ? player.username : null))
+                    .append("] ")
+                    .append(msg);
 
-        if(messageId != 0) {
-            refs.put(messageId, new MessageRef(msg, root));
-        }
+            if(messageId != 0) {
+                refs.put(messageId, new MessageRef(msg, root));
+            }
 
-        Minecraft.getInstance().gui.getChat().addMessage(
-                root,
-                null,
-                null
-        );
+            client.gui.getChat().addMessage(
+                    root,
+                    null,
+                    null
+            );
+        }/* else if(client.screen instanceof HandlesNewMessage) {
+            Message m = getClient().getMessage(messageId);
+            ((HandlesNewMessage) client.screen).onNewUserMessage(target, m);
+        }*/
+
+        // the else isn't necessary here, friends list screen handles sent messages already
     }
 
     public void generateLobbyMessage(
