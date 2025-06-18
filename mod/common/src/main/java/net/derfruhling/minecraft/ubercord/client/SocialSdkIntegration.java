@@ -239,7 +239,13 @@ public class SocialSdkIntegration {
 
             if(msg.getDisclosureType() != null) {
                 switch (msg.getDisclosureType()) {
-                    case MessageDataVisibleOnDiscord -> generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.disclosure.message_data").withColor(0xFFFFFFFF));
+                    case MessageDataVisibleOnDiscord -> {
+                        if(self.isProvisional()) {
+                            generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.disclosure.message_data.provisional").withColor(0xFFFFFFFF));
+                        } else {
+                            generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.disclosure.message_data").withColor(0xFFFFFFFF));
+                        }
+                    }
                 }
             } else {
                 if(channel != null && channel.type().isDm() && recipient != null) {

@@ -1,6 +1,7 @@
 {
   "ubercord.system": "system",
   "ubercord.disclosure.message_data": "Any messages you send here are also sent to Discord. They may be seen or moderated by people who aren't in-game, especially if there is a channel linked.\n\nBy default, DMs are shown in-game. If you do not wish for this to happen (e.g. you are streaming), run /chatctl and tell Discord not to show all DMs in-game.",
+  "ubercord.disclosure.message_data.provisional": "Any messages you send here are also sent to Discord. They may be seen or moderated by people who aren't in-game, especially if there is a channel linked.",
   "ubercord.disclosure.edited": "(edited)",
   "ubercord.disclosure.edited.desc": "This message has been edited.",
   "ubercord.disclosure.deleted": "(deleted)",
