@@ -44,6 +44,8 @@ public final class UbercordClient {
     private static SocialSdkIntegration integration;
     private static boolean clothConfigPresent = false;
 
+    static FriendListScreen friendListScreen = null;
+    
     public static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("ubercord", "font");
 
     public static SocialSdkIntegration get() {
@@ -251,7 +253,10 @@ public final class UbercordClient {
 
         ClientTickEvent.CLIENT_POST.register(client -> {
             while (FRIENDS_LIST_KEYMAPPING.consumeClick()) {
-                client.setScreen(new FriendListScreen());
+                FriendListScreen friendsListScreen = getFriendsListScreen();
+                if(friendsListScreen == null) return;
+
+                client.setScreen(friendListScreen);
             }
         });
 
@@ -285,6 +290,16 @@ public final class UbercordClient {
 
             integration.getClient().runCallbacks();
         });
+    }
+
+    static @Nullable FriendListScreen getFriendsListScreen() {
+        if(!get().isReady()) return null;
+
+        if(friendListScreen == null || friendListScreen.targetUserId != get().self.id) {
+            friendListScreen = new FriendListScreen(get().self.id);
+        }
+
+        return friendListScreen;
     }
 
     private static void updatePlayingRichPresence() {

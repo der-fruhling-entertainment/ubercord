@@ -30,8 +30,11 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
     private FriendContext currentContext = null;
     private SpruceTextAreaWidget textInput = null;
 
-    public FriendListScreen() {
+    public final long targetUserId;
+
+    public FriendListScreen(long targetUserId) {
         super(Component.translatable("ubercord.friend_list.title"));
+        this.targetUserId = targetUserId;
     }
 
     private void reallyReloadRelationships() {
@@ -168,6 +171,13 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
     public void onNewUserMessage(User user, Message message) {
         for (FriendContext context : contexts) {
             context.onNewUserMessage(user, message);
+        }
+    }
+
+    @Override
+    public void onNewSelfMessageUnfocused(User target, Message message) {
+        for (FriendContext context : contexts) {
+            context.onNewSelfMessageUnfocused(target, message);
         }
     }
 }

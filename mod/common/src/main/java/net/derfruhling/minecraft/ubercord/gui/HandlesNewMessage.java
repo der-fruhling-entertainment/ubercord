@@ -5,4 +5,5 @@ import net.derfruhling.discord.socialsdk4j.User;
 
 public sealed interface HandlesNewMessage permits FriendListScreen, FriendContext {
     void onNewUserMessage(User user, Message message);
+    void onNewSelfMessageUnfocused(User target, Message message);
 }

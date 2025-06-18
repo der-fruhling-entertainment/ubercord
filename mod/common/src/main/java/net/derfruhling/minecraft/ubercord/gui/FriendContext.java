@@ -32,6 +32,15 @@ public final class FriendContext implements HandlesNewMessage {
         messages.addMessage(chatMessage);
     }
 
+    @Override
+    public void onNewSelfMessageUnfocused(User target, Message message) {
+        if(target.id != targetUser.id) return;
+
+        ChatMessage chatMessage = ChatMessage.fromSelf(friendListScreen, this, message.getContent());
+        chatMessages.add(chatMessage);
+        messages.addMessage(chatMessage);
+    }
+
     void addMessage(ChatMessage message) {
         chatMessages.add(message);
         messages.addMessage(message);

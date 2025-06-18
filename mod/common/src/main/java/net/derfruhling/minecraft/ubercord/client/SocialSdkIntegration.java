@@ -1065,35 +1065,41 @@ public class SocialSdkIntegration {
             User source,
             String message
     ) {
-        OnlinePlayer player = onlinePlayersById.get(source.id);
-
-        MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
-        MutableComponent root = Component.empty()
-                .withStyle(ChatFormatting.GRAY)
-                .append("[")
-                .append(player != null
-                        ? Badge.ONLINE_USER_MESSAGE.create(player.username, source.getDisplayName(), source.id, source.getRelationship())
-                        : Badge.OFFLINE_USER_MESSAGE.create(null, source.getDisplayName(), source.id, source.getRelationship()))
-                .append(Badge.componentForUser(source, player != null ? player.username : null))
-                .append(" → ")
-                .append(Component.translatable("ubercord.chat.you"))
-                .append("] ")
-                .append(msg)
-                .append("  ")
-                .append(Badge.REPLY_BUTTON.create()
-                        .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + source.id + " "))));
-
-        if(messageId != 0) {
-            refs.put(messageId, new MessageRef(msg, root));
-        }
-
         Minecraft client = Minecraft.getInstance();
         if(client.screen == null) {
+            OnlinePlayer player = onlinePlayersById.get(source.id);
+
+            MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
+            MutableComponent root = Component.empty()
+                    .withStyle(ChatFormatting.GRAY)
+                    .append("[")
+                    .append(player != null
+                            ? Badge.ONLINE_USER_MESSAGE.create(player.username, source.getDisplayName(), source.id, source.getRelationship())
+                            : Badge.OFFLINE_USER_MESSAGE.create(null, source.getDisplayName(), source.id, source.getRelationship()))
+                    .append(Badge.componentForUser(source, player != null ? player.username : null))
+                    .append(" → ")
+                    .append(Component.translatable("ubercord.chat.you"))
+                    .append("] ")
+                    .append(msg)
+                    .append("  ")
+                    .append(Badge.REPLY_BUTTON.create()
+                            .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + source.id + " "))));
+
+            if(messageId != 0) {
+                refs.put(messageId, new MessageRef(msg, root));
+            }
+
             client.gui.getChat().addMessage(
                     root,
                     null,
                     null
             );
+
+            FriendListScreen friendsListScreen = UbercordClient.getFriendsListScreen();
+            if(friendsListScreen != null) {
+                Message m = getClient().getMessage(messageId);
+                friendsListScreen.onNewUserMessage(source, m);
+            }
         } else if(client.screen instanceof HandlesNewMessage) {
             Message m = getClient().getMessage(messageId);
             ((HandlesNewMessage) client.screen).onNewUserMessage(source, m);
@@ -1131,10 +1137,13 @@ public class SocialSdkIntegration {
                     null,
                     null
             );
-        }/* else if(client.screen instanceof HandlesNewMessage) {
-            Message m = getClient().getMessage(messageId);
-            ((HandlesNewMessage) client.screen).onNewUserMessage(target, m);
-        }*/
+
+            FriendListScreen friendsListScreen = UbercordClient.getFriendsListScreen();
+            if(friendsListScreen != null && !(client.screen instanceof HandlesNewMessage)) {
+                Message m = getClient().getMessage(messageId);
+                friendsListScreen.onNewSelfMessageUnfocused(target, m);
+            }
+        }
 
         // the else isn't necessary here, friends list screen handles sent messages already
     }
