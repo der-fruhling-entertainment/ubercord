@@ -1,25 +1,38 @@
 package net.derfruhling.minecraft.ubercord.client;
 
 import net.derfruhling.discord.socialsdk4j.Lobby;
+import net.derfruhling.minecraft.ubercord.ManagedChannelKind;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.Locale;
+import java.util.Map;
 
 public record JoinedChannel(
         long lobbyId,
-        Context context,
+        ManagedChannelKind kind,
         String name,
-        String secret,
+        @Nullable String secret,
         Lobby lobby
 ) {
-    public JoinedChannel(Husk husk, String secret, long lobbyId, Lobby lobby) {
-        this(lobbyId, husk.context, husk.name, secret, lobby);
+    private JoinedChannel(Lobby lobby, Map<String, String> meta, @Nullable String secret) {
+        this(lobby.id,
+                ManagedChannelKind.valueOf(meta.getOrDefault("kind", "global").toUpperCase(Locale.ROOT)),
+                meta.get("name"),
+                secret == null ? meta.get("secret") : secret,
+                lobby);
     }
 
-    public enum Context {
-        Global,
-        Server
+    public JoinedChannel(Lobby lobby) {
+        this(lobby, lobby.getMetadata(), null);
+    }
+
+    public JoinedChannel(Lobby lobby, @NotNull String secret) {
+        this(lobby, lobby.getMetadata(), secret);
     }
 
     public record Husk(
-            Context context,
+            ManagedChannelKind kind,
             String name
     ) {}
 }

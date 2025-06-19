@@ -7,11 +7,11 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record RequestJoinLobby(String lobbyName) implements CustomPacketPayload {
-    public static final Type<RequestJoinLobby> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Ubercord.MOD_ID, "lobby_joined"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, RequestJoinLobby> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.STRING_UTF8, RequestJoinLobby::lobbyName,
-            RequestJoinLobby::new
+public record RequestLobbyId(String lobbyName) implements CustomPacketPayload {
+    public static final Type<RequestLobbyId> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Ubercord.MOD_ID, "request_lobby_id"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, RequestLobbyId> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.STRING_UTF8, RequestLobbyId::lobbyName,
+            RequestLobbyId::new
     );
 
     @Override

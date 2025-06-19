@@ -11,22 +11,35 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.UUID;
+import java.util.Arrays;
 
 public record ServerConfig(
-        UUID serverId,
-        UUID serverConfigId,
         @Nullable String botToken,
+        @Nullable Long clientId,
         @Nullable DisplayConfig display,
-        @Nullable String authDomain,
-        @Nullable String authKey
+        @Nullable ChannelStrategy channelStrategy,
+        @Nullable String[] channels
 ) {
+    public enum ChannelStrategy {
+        NONE,
+        LISTED_ON_DEMAND,
+        ANY_ON_DEMAND
+    }
+
+    public boolean permitsCreatingChannel(String name) {
+        return switch (channelStrategy == null ? ChannelStrategy.LISTED_ON_DEMAND : channelStrategy) {
+            case NONE -> false;
+            case LISTED_ON_DEMAND -> Arrays.asList(channels).contains(name);
+            case ANY_ON_DEMAND -> true;
+        };
+    }
+
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .create();
 
     public ServerConfig() {
-        this(UUID.randomUUID(), UUID.randomUUID(), null, null, null, null);
+        this(null, null, null, null, null);
     }
 
     public static ServerConfig loadOrDefault(MinecraftServer server) {

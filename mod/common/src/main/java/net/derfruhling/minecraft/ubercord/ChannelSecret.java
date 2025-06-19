@@ -20,6 +20,13 @@ public final class ChannelSecret {
         }
     }
 
+    /**
+     * @param name The name for the channel
+     * @param serverId A unique ID representing the server
+     * @return A secret which can be joined
+     * @deprecated Do not use this, use the üPS API to make server lobbies.
+     */
+    @Deprecated
     public static String generateServerBasedSecret(UUID serverId, String name) {
         try {
             return Base64.getEncoder().encodeToString(

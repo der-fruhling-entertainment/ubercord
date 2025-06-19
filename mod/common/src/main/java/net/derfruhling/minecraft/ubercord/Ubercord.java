@@ -3,17 +3,16 @@ package net.derfruhling.minecraft.ubercord;
 import com.auth0.jwk.JwkException;
 import com.auth0.jwk.JwkProvider;
 import com.auth0.jwk.JwkProviderBuilder;
+import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.RSAKeyProvider;
-import com.google.gson.Gson;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.NetworkManager;
-import net.derfruhling.minecraft.ubercord.client.Badge;
 import net.derfruhling.minecraft.ubercord.client.ProvisionalServiceDownException;
 import net.derfruhling.minecraft.ubercord.packets.*;
-import net.derfruhling.minecraft.ubercord.server.AuthenticationConfig;
-import net.derfruhling.minecraft.ubercord.server.AuthorizeUserRequest;
 import net.derfruhling.minecraft.ubercord.server.ServerConfig;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,7 +33,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 public final class Ubercord {
@@ -42,12 +40,21 @@ public final class Ubercord {
     private static final Logger log = LogManager.getLogger(Ubercord.class);
 
     private static ServerConfig serverConfig;
-    private static @Nullable AuthenticationConfig authConfig;
 
-    static final JwkProvider jwks = new JwkProviderBuilder("https://ubercord.derfruhling.net/")
-            .cached(10, 24, TimeUnit.HOURS)
-            .rateLimited(10, 1, TimeUnit.MINUTES)
-            .build();
+    private static @Nullable ManagedChannelService serverManagedChannelService = null;
+
+    static final JwkProvider jwks;
+
+    static {
+        try {
+            jwks = new JwkProviderBuilder(URI.create("https://ubercord.derfruhling.net/jwks.json").toURL())
+                    .cached(10, 24, TimeUnit.HOURS)
+                    .rateLimited(10, 1, TimeUnit.MINUTES)
+                    .build();
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     static final RSAKeyProvider key = new RSAKeyProvider() {
         @Override
@@ -72,25 +79,7 @@ public final class Ubercord {
 
     static final Algorithm rsa = Algorithm.RSA256(key);
 
-    static HttpClient homeHttp = createHomeHttp();
-
-    private static HttpClient createHomeHttp() {
-        return HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .authenticator(new Authenticator() {
-                    @Override
-                    protected PasswordAuthentication getPasswordAuthentication() {
-                        return switch (getRequestingHost()) {
-                            case "ubercord.derfruhling.net" ->
-                                    new PasswordAuthentication(authConfig.clientId(), authConfig.clientKey().toCharArray());
-                            default -> null;
-                        };
-                    }
-                })
-                .build();
-    }
-
-    static final HttpClient discordHttp = HttpClient.newBuilder()
+    static final HttpClient http = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
@@ -108,13 +97,13 @@ public final class Ubercord {
     public static void init() {
         LifecycleEvent.SERVER_BEFORE_START.register(server -> {
             serverConfig = ServerConfig.loadOrDefault(server);
-            if(serverConfig != null && serverConfig.authKey() != null) {
-                try {
-                    authConfig = AuthenticationConfig.decode(serverConfig.authKey());
-                } catch (ProvisionalServiceDownException e) {
-                    log.warn("Provisional service is down", e);
-                }
-            }
+            serverManagedChannelService = new ManagedChannelService();
+        });
+
+        LifecycleEvent.SERVER_STOPPED.register(server -> {
+            assert serverManagedChannelService != null;
+            serverManagedChannelService.deleteAllTransientResources();
+            serverManagedChannelService = null;
         });
 
         NetworkManager.registerReceiver(
@@ -133,7 +122,7 @@ public final class Ubercord {
                     long lobbyId = value.lobbyId();
                     long userId = ((DiscordIdContainer)context.getPlayer()).getUserId();
 
-                    discordHttp.sendAsync(HttpRequest.newBuilder()
+                    http.sendAsync(HttpRequest.newBuilder()
                             .PUT(HttpRequest.BodyPublishers.ofString("{\"flags\":1}"))
                             .uri(URI.create(String.format("https://discord.com/api/v10/lobbies/%d/members/%d", lobbyId, userId)))
                             .header("Authorization", "Bot " + serverConfig.botToken())
@@ -158,12 +147,61 @@ public final class Ubercord {
 
         NetworkManager.registerReceiver(
                 NetworkManager.c2s(),
-                RequestJoinLobby.TYPE,
-                RequestJoinLobby.STREAM_CODEC,
+                RequestLobbyId.TYPE,
+                RequestLobbyId.STREAM_CODEC,
                 (value, context) -> {
-                    UUID serverId = serverConfig.serverId();
-                    String secret = ChannelSecret.generateServerBasedSecret(serverId, value.lobbyName());
-                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new JoinLobby(value.lobbyName(), secret));
+                    assert serverManagedChannelService != null;
+                    OwnedChannel channel = serverManagedChannelService.getOwnedChannel(value.lobbyName());
+
+                    if(channel == null && serverConfig.permitsCreatingChannel(value.lobbyName())) {
+                        try {
+                            log.info("Creating server channel {}", value.lobbyName());
+                            serverManagedChannelService.createServerChannel(value.lobbyName())
+                                    .thenAccept(ownedChannel -> {
+                                        log.info("Server channel {} has ID {}", value.lobbyName(), ownedChannel.lobbyId());
+                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(ownedChannel.lobbyId(), value.lobbyName()));
+                                    })
+                                    .exceptionally(throwable -> {
+                                        log.error("Failed to create channel {} in response to user trying to join it", value.lobbyName(), throwable);
+                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(0, value.lobbyName()));
+                                        return null;
+                                    });
+                        } catch (ChannelExistsException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(channel == null ? 0 : channel.lobbyId(), value.lobbyName()));
+                    }
+                }
+        );
+
+        NetworkManager.registerReceiver(
+                NetworkManager.c2s(),
+                JoinLobby.TYPE,
+                JoinLobby.STREAM_CODEC,
+                (value, context) -> {
+                    assert serverManagedChannelService != null;
+
+                    log.info("Player {} trying to join server lobby with ID {}", context.getPlayer(), value.lobbyId());
+
+                    DiscordIdContainer container = (DiscordIdContainer) context.getPlayer();
+                    OwnedChannel ownedChannel = serverManagedChannelService.getOwnedChannel(value.lobbyId());
+
+                    if(ownedChannel == null) {
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(value.lobbyId(), "<not found; maybe try again?>"));
+                        return;
+                    }
+
+                    if ((value.permissionToken().equals("$custom-in-use$") && serverManagedChannelService instanceof CustomManagedChannelService) || isPermissionJwtValid(value, container)) {
+                        serverManagedChannelService.addUserToChannel(ownedChannel, container.getUserId(), value.permissionToken(), context.getPlayer().hasPermissions(3))
+                                .exceptionally(throwable -> {
+                                    log.error("Failed to authorize and add user {} to lobby {}", container.getUserId(), ownedChannel.lobbyId(), throwable);
+                                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(ownedChannel.lobbyId(), ownedChannel.name()));
+                                    return null;
+                                });
+                    } else {
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(value.lobbyId(), ownedChannel.name()));
+                    }
                 }
         );
 
@@ -198,6 +236,21 @@ public final class Ubercord {
                 );
             }
         });
+    }
+
+    private static boolean isPermissionJwtValid(JoinLobby value, DiscordIdContainer container) {
+        try {
+            JWT.require(rsa)
+                    .withAudience("ubercord:join:" + container.getUserId())
+                    .withSubject(String.valueOf(value.lobbyId()))
+                    .withClaim("kind", "SERVER")
+                    .build()
+                    .verify(value.permissionToken());
+            return true;
+        } catch (JWTVerificationException e) {
+            log.error("JWT failed verification", e);
+            return false;
+        }
     }
 
     public static void initDedicatedServer() {
