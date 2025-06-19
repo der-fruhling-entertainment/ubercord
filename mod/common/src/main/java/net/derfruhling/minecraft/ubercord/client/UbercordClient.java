@@ -86,7 +86,7 @@ public final class UbercordClient {
                 LobbyJoinFailure.TYPE,
                 LobbyJoinFailure.STREAM_CODEC,
                 (value, context) -> {
-                    integration.serverLobbyJoinFailed(value.lobbyName());
+                    integration.lobbyJoinFailed(value.lobbyName());
                 }
         );
 
@@ -261,6 +261,8 @@ public final class UbercordClient {
 
                 client.setScreen(friendListScreen);
             }
+
+            get().tick();
         });
 
         ClientLifecycleEvent.CLIENT_STARTED.register(client -> {
@@ -369,9 +371,15 @@ public final class UbercordClient {
         Long userId = ctx.getArgument("user", Long.class);
         String message = ctx.getArgument("message", String.class);
 
+        User user = get().getClient().getUser(userId);
+        SocialSdkIntegration.StatusChanger ref = get().generateSentDmMessage(user, message);
+
         integration.getClient().sendUserMessage(userId, message, (result, messageId) -> {
             if (!result.isSuccess()) {
+                ref.invoke(false, 0);
                 ctx.getSource().arch$sendFailure(Component.translatable("ubercord.generic.error", result.message()));
+            } else {
+                ref.invoke(true, messageId);
             }
         });
 

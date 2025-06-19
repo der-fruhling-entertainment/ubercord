@@ -4,7 +4,8 @@
       "type": "bitmap",
       "ascent": 7,
       "chars": [
-        "acdefghijk?>v"
+        "acdefghijk?>v",
+        "12345\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
       ],
       "file": "ubercord:font/icon.png"
     }

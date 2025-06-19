@@ -175,6 +175,11 @@ public class SocialSdkIntegration {
                             });
                         }
                     }
+
+                    synchronized (channelTickers) {
+                        LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                        if(ticker != null) ticker.succeed();
+                    }
                 } else {
                     log.error("Lobby {} has no channel name (not created by ubercord?)", lobbyId);
                 }
@@ -188,6 +193,10 @@ public class SocialSdkIntegration {
                 //noinspection unchecked
                 for (Map.Entry<String, JoinedChannel> lobby : knownChannels.entrySet().toArray(Map.Entry[]::new)) {
                     if(lobby.getValue().lobbyId() == lobbyId) {
+                        if(channelTickers.containsKey(lobby.getValue().name())) {
+                            channelTickers.remove(lobby.getValue().name()).succeed();
+                        }
+
                         knownChannels.remove(lobby.getKey());
 
                         Minecraft.getInstance().execute(() -> {
@@ -220,7 +229,7 @@ public class SocialSdkIntegration {
             } else {
                 if(channel != null && channel.type().isDm() && recipient != null) {
                     if(self.id == msg.getAuthorId()) {
-                        generateSentDmMessage(messageId, recipient, msg.getContent());
+//                        generateSentDmMessage(recipient, msg.getContent());
                     } else {
                         generateDmMessage(messageId, recipient, msg.getContent());
                     }
@@ -228,7 +237,9 @@ public class SocialSdkIntegration {
                     Lobby lobby = msg.getLobby();
                     if(lobby == null) return;
 
-                    receiveMessage(lobby.id, author, msg.getContent(), messageId);
+                    if(author == null || author.id != self.id) {
+                        receiveMessage(lobby.id, author, msg.getContent(), messageId);
+                    }
                 }
             }
         });
@@ -386,12 +397,31 @@ public class SocialSdkIntegration {
         String name = meta.get("name");
 
         if(meta.containsKey("ups-managed") && meta.get("ups-managed").equals("true")) {
+            MutableComponent activity = Component.translatable("ubercord.lobby.leaving", name)
+                    .withStyle(ChatFormatting.GRAY);
+            MutableComponent status = Component.translatable("ubercord.lobby.status.waiting_for_server")
+                    .withStyle(ChatFormatting.DARK_GRAY);
+            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            channelTickers.put(name, lobbyStatus);
+
             // can't leave here, need to interact with provisional service
             assert accessToken != null;
-            managedChannelService.removeSelfFromChannel(lobbyId, accessToken);
+            managedChannelService.removeSelfFromChannel(lobbyId, accessToken)
+                    .exceptionally(throwable -> {
+                        lobbyStatus.fail();
+                        log.error("Failed to remove self from lobby {}", name, throwable);
+                        return null;
+                    });
         } else {
+            MutableComponent activity = Component.translatable("ubercord.lobby.leaving", name)
+                    .withStyle(ChatFormatting.GRAY);
+            MutableComponent status = Component.empty();
+            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            channelTickers.put(name, lobbyStatus);
+
             client.leaveLobby(lobbyId, result -> {
                 if(!result.isSuccess()) {
+                    lobbyStatus.fail();
                     log.error("Failed to leave lobby {}: {}", lobbyId, result.message());
                 } else {
                     knownChannels.remove(name);
@@ -408,16 +438,31 @@ public class SocialSdkIntegration {
         leaveLobby(Objects.requireNonNull(getJoinedChannel(name)).lobbyId());
     }
 
-    private final List<String> waitingServerChannels = new ArrayList<>();
+    private final HashMap<String, LobbyStatusMessageTicker> channelTickers = new HashMap<>();
 
     public void joinLobby(ManagedChannelKind ctx, String name) {
         switch (ctx) {
-            case GLOBAL -> joinGlobalLobby(name);
+            case GLOBAL -> {
+                MutableComponent activity = Component.translatable("ubercord.lobby.joining", name)
+                        .withStyle(ChatFormatting.GRAY);
+                MutableComponent status = Component.empty();
+                LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+                channelTickers.put(name, lobbyStatus);
+
+                joinGlobalLobby(name);
+            }
 
             case SERVER -> {
                 if(NetworkManager.canServerReceive(RequestLobbyId.TYPE)) {
-                    synchronized (waitingServerChannels) {
-                        waitingServerChannels.add(name);
+                    synchronized (channelTickers) {
+                        if(channelTickers.containsKey(name)) return;
+
+                        MutableComponent activity = Component.translatable("ubercord.lobby.joining", name)
+                                .withStyle(ChatFormatting.GRAY);
+                        MutableComponent status = Component.translatable("ubercord.lobby.status.resolving")
+                                .withStyle(ChatFormatting.DARK_GRAY);
+                        LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+                        channelTickers.put(name, lobbyStatus);
                     }
 
                     NetworkManager.sendToServer(new RequestLobbyId(name));
@@ -429,6 +474,12 @@ public class SocialSdkIntegration {
 
             case PERSONAL -> throw new NotImplementedException(); // TODO
         }
+    }
+
+    public void tick() {
+        channelTickers.forEach((name, ticker) -> {
+            ticker.tick();
+        });
     }
 
     /**
@@ -456,11 +507,12 @@ public class SocialSdkIntegration {
         });
     }
 
-    void serverLobbyJoinFailed(String name) {
+    void lobbyJoinFailed(String name) {
         generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.failure"));
 
-        synchronized (waitingServerChannels) {
-            waitingServerChannels.remove(name);
+        synchronized (channelTickers) {
+            LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+            if(ticker != null) ticker.fail();
         }
     }
 
@@ -468,21 +520,28 @@ public class SocialSdkIntegration {
         if(lobbyId == 0) {
             generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.not_found_error"));
 
-            synchronized (waitingServerChannels) {
-                waitingServerChannels.remove(name);
+            synchronized (channelTickers) {
+                LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                if(ticker != null) ticker.fail();
             }
 
             return;
         }
 
+        channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.authorizing").withStyle(ChatFormatting.DARK_GRAY));
+
         managedChannelService.requestPermissionsToken(lobbyId, ManagedChannelKind.SERVER, accessToken)
-                .thenAccept(s -> NetworkManager.sendToServer(new JoinLobby(lobbyId, s)))
+                .thenAccept(s -> {
+                    NetworkManager.sendToServer(new JoinLobby(lobbyId, s));
+                    channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.waiting_for_server").withStyle(ChatFormatting.DARK_GRAY));
+                })
                 .exceptionally(e -> {
                     log.error("Failed to join server lobby {} named {}", lobbyId, name, e);
                     generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.provisional_service_failed").withStyle(ChatFormatting.RED));
 
-                    synchronized (waitingServerChannels) {
-                        waitingServerChannels.remove(name);
+                    synchronized (channelTickers) {
+                        LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                        if(ticker != null) ticker.fail();
                     }
 
                     return null;
@@ -503,6 +562,8 @@ public class SocialSdkIntegration {
         client.createOrJoinLobby(secret, lobbyMeta, memberMeta, (result, lobbyId) -> {
             if(!result.isSuccess()) {
                 generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.generic.error", result.message()));
+
+                lobbyJoinFailed(name);
             }
         });
     }
@@ -515,7 +576,7 @@ public class SocialSdkIntegration {
         });
         currentChannel = null;
         displayConfig = defaultConfig;
-        waitingServerChannels.clear();
+        channelTickers.clear();
     }
 
     public static void connectWithJoinSecret(String joinSecret) {
@@ -640,7 +701,7 @@ public class SocialSdkIntegration {
 
         Minecraft.getInstance().execute(() -> {
             Map<String, String> meta = ch.lobby().getMetadata();
-            generateChannelSwitchMessage(meta.get("channel-name"));
+            generateChannelSwitchMessage(meta.get("name"));
 
             if(Minecraft.getInstance().screen instanceof DiesOnChannelChange) {
                 Minecraft.getInstance().setScreen(null);
@@ -1008,12 +1069,33 @@ public class SocialSdkIntegration {
             return;
         }
 
-        sendMessage(ch.lobbyId(), message);
+        if(isReady()) {
+            sendMessage(ch.lobbyId(), message);
+        } else {
+            whenReady.add(() -> sendMessage(ch.lobbyId(), message));
+        }
     }
 
     private void reallySendMessage(long lobbyId, String message) {
+        StatusChanger changer;
+        if(currentChannel != null && currentChannel.lobbyId() == lobbyId) {
+            changer = generateMainLobbyMessage(self, message);
+        } else {
+            Lobby lobby = client.getLobby(lobbyId);
+            if(lobby != null) {
+                Map<String, String> meta = lobby.getMetadata();
+                changer = generateLobbyMessage(meta.get("channel-name"), self, message);
+            } else {
+                changer = null;
+            }
+        }
+
         client.sendLobbyMessage(lobbyId, message, (result, messageId) -> {
             if(Minecraft.getInstance().player == null) return;
+
+            if(changer != null) {
+                changer.invoke(result.isSuccess(), messageId);
+            }
 
             if (!result.isSuccess()) {
                 Minecraft.getInstance().player.sendSystemMessage(Component.translatable("ubercord.generic.error", result.message()));
@@ -1023,24 +1105,64 @@ public class SocialSdkIntegration {
 
     private void receiveMessage(long lobbyId, User source, String message, long messageId) {
         if(currentChannel != null && currentChannel.lobbyId() == lobbyId) {
-            generateMainLobbyMessage(messageId, source, message);
+            generateMainLobbyMessage(source, message)
+                    .invoke(true, messageId);
         } else {
             Lobby lobby = client.getLobby(lobbyId);
             if(lobby != null) {
                 Map<String, String> meta = lobby.getMetadata();
-                generateLobbyMessage(messageId, meta.get("channel-name"), source, message);
+                generateLobbyMessage(meta.get("channel-name"), source, message)
+                        .invoke(true, messageId);
             }
         }
     }
 
-    static class MessageRef {
-        private final MutableComponent root;
-        private MutableComponent message;
-        private boolean hasBeenEdited = false;
+    enum MessageStatus {
+        SENT {
+            @Override
+            Style style() {
+                return Style.EMPTY
+                        .withColor(ChatFormatting.GRAY);
+            }
+        },
+        CONFIRMED {
+            @Override
+            Style style() {
+                return Style.EMPTY
+                        .withColor(ChatFormatting.WHITE);
+            }
+        },
+        BROKEN {
+            @Override
+            Style style() {
+                return Style.EMPTY
+                        .withColor(ChatFormatting.RED);
+            }
+        };
 
-        public MessageRef(MutableComponent root, MutableComponent message) {
+        abstract Style style();
+    }
+
+    static class MessageRef {
+        protected final MutableComponent root;
+        protected MutableComponent message;
+        private boolean hasBeenEdited = false;
+        private MessageStatus status;
+
+        public MessageRef(MutableComponent root, MutableComponent message, MessageStatus status) {
             this.root = root;
             this.message = message;
+            this.status = status;
+        }
+
+        public synchronized void changeStatus(MessageStatus status) {
+            this.status = status;
+
+            MutableComponent orig = message;
+            message = message.withStyle(status.style());
+
+            root.getSiblings().set(root.getSiblings().indexOf(orig), message);
+            Minecraft.getInstance().gui.getChat().rescaleChat();
         }
 
         public synchronized void edit(Function<MutableComponent, MutableComponent> editor) {
@@ -1074,6 +1196,97 @@ public class SocialSdkIntegration {
         }
     }
 
+    static class LobbyStatusMessageTicker extends MessageRef {
+        private MutableComponent animation;
+        private static final int ANIMATION_TICK_PERIOD = 3;
+        private static final String[] ANIMATION = new String[] {
+                "54321",
+                "45432",
+                "34543",
+                "23454",
+                "12345",
+                "23454",
+                "34543",
+                "45432"
+        };
+
+        private static int colorForChar(char ch) {
+            return switch(ch) {
+                case '1' -> 0x4184ad;
+                case '2' -> 0x4c9cce;
+                case '3' -> 0x4faae2;
+                case '4' -> 0x5dbaf4;
+                case '5' -> 0xb3e0fc;
+                default -> throw new IllegalStateException("Unexpected value: " + ch);
+            };
+        }
+
+        private static MutableComponent colorAnimation(String message) {
+            MutableComponent component = Component.empty();
+
+            for (char c : message.toCharArray()) {
+                component.append(Component.literal(String.valueOf(c)).withColor(colorForChar(c)));
+            }
+
+            return component.withStyle(Style.EMPTY.withFont(UbercordClient.FONT));
+        }
+
+        private int animationTicksRemaining = 0, animationFrame = -1;
+
+        private LobbyStatusMessageTicker(MutableComponent root, MutableComponent message, MutableComponent animation) {
+            super(root, message, MessageStatus.CONFIRMED);
+            this.animation = animation;
+        }
+
+        public synchronized void updateStatus(MutableComponent newStatus) {
+            root.getSiblings().set(root.getSiblings().indexOf(message), newStatus);
+            message = newStatus;
+            Minecraft.getInstance().gui.getChat().rescaleChat();
+        }
+
+        public void succeed() {
+            commonEndpoint(Component.literal("✔").withStyle(ChatFormatting.GREEN));
+        }
+
+        public void fail() {
+            commonEndpoint(Component.literal("✕").withStyle(ChatFormatting.RED));
+        }
+
+        private synchronized void commonEndpoint(MutableComponent newMessage) {
+            MutableComponent newAnimation = Component.empty();
+            root.getSiblings().set(root.getSiblings().indexOf(animation), newAnimation);
+            animation = newAnimation;
+
+            root.getSiblings().set(root.getSiblings().indexOf(message), newMessage);
+            message = newMessage;
+
+            Minecraft.getInstance().gui.getChat().rescaleChat();
+        }
+
+        public synchronized void tick() {
+            if(animationTicksRemaining-- == 0) {
+                animationTicksRemaining = ANIMATION_TICK_PERIOD;
+                MutableComponent newComponent = colorAnimation(ANIMATION[++animationFrame % ANIMATION.length]);
+                root.getSiblings().set(root.getSiblings().indexOf(animation), newComponent);
+                animation = newComponent;
+                Minecraft.getInstance().gui.getChat().rescaleChat();
+            }
+        }
+
+        public static LobbyStatusMessageTicker create(Component activity, Component status) {
+            MutableComponent statusMut = status.copy();
+            MutableComponent animation = Component.empty();
+            MutableComponent root = activity.copy()
+                    .append(" ")
+                    .append(animation)
+                    .append(" ")
+                    .append(statusMut);
+
+            Minecraft.getInstance().gui.getChat().addMessage(root, null, null);
+            return new LobbyStatusMessageTicker(root, statusMut, animation);
+        }
+    }
+
     public void generateDmMessage(
             long messageId,
             User source,
@@ -1100,7 +1313,7 @@ public class SocialSdkIntegration {
                             .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + source.id + " "))));
 
             if(messageId != 0) {
-                refs.put(messageId, new MessageRef(msg, root));
+                refs.put(messageId, new MessageRef(msg, root, MessageStatus.CONFIRMED));
             }
 
             client.gui.getChat().addMessage(
@@ -1120,57 +1333,64 @@ public class SocialSdkIntegration {
         }
     }
 
-    public void generateSentDmMessage(
-            long messageId,
+    public interface StatusChanger {
+        void invoke(boolean successful, long messageId);
+
+        StatusChanger NO_OP = (successful, messageId) -> {};
+    }
+
+    public StatusChanger generateSentDmMessage(
             User target,
             String message
     ) {
         Minecraft client = Minecraft.getInstance();
-        if(client.screen == null) {
-            OnlinePlayer player = onlinePlayersById.get(target.id);
+        OnlinePlayer player = onlinePlayersById.get(target.id);
 
-            MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
-            MutableComponent root = Component.empty()
-                    .withStyle(ChatFormatting.GRAY)
-                    .append("[")
-                    .append(Component.translatable("ubercord.chat.you"))
-                    .append(" → ")
-                    .append(player != null
-                            ? Badge.ONLINE_USER_MESSAGE.create(player.username, target.getDisplayName(), target.id, target.getRelationship())
-                            : Badge.OFFLINE_USER_MESSAGE.create(null, target.getDisplayName(), target.id, target.getRelationship()))
-                    .append(Badge.componentForUser(target, player != null ? player.username : null))
-                    .append("] ")
-                    .append(msg);
+        MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.GRAY);
+        MutableComponent root = Component.empty()
+                .withStyle(ChatFormatting.GRAY)
+                .append("[")
+                .append(Component.translatable("ubercord.chat.you"))
+                .append(" → ")
+                .append(player != null
+                        ? Badge.ONLINE_USER_MESSAGE.create(player.username, target.getDisplayName(), target.id, target.getRelationship())
+                        : Badge.OFFLINE_USER_MESSAGE.create(null, target.getDisplayName(), target.id, target.getRelationship()))
+                .append(Badge.componentForUser(target, player != null ? player.username : null))
+                .append("] ")
+                .append(msg);
 
-            if(messageId != 0) {
-                refs.put(messageId, new MessageRef(msg, root));
+        MessageRef ref = new MessageRef(msg, root, MessageStatus.SENT);
+        StatusChanger changer = (successful, messageId) -> {
+            if(successful) {
+                ref.changeStatus(MessageStatus.CONFIRMED);
+
+                FriendListScreen friendsListScreen = UbercordClient.getFriendsListScreen();
+                if(friendsListScreen != null && !(client.screen instanceof HandlesNewMessage)) {
+                    Message m = getClient().getMessage(messageId);
+                    friendsListScreen.onNewSelfMessageUnfocused(target, m);
+                }
+            } else {
+                ref.changeStatus(MessageStatus.BROKEN);
             }
+        };
 
-            client.gui.getChat().addMessage(
-                    root,
-                    null,
-                    null
-            );
+        client.gui.getChat().addMessage(
+                root,
+                null,
+                null
+        );
 
-            FriendListScreen friendsListScreen = UbercordClient.getFriendsListScreen();
-            if(friendsListScreen != null && !(client.screen instanceof HandlesNewMessage)) {
-                Message m = getClient().getMessage(messageId);
-                friendsListScreen.onNewSelfMessageUnfocused(target, m);
-            }
-        }
-
-        // the else isn't necessary here, friends list screen handles sent messages already
+        return changer;
     }
 
-    public void generateLobbyMessage(
-            long messageId,
+    public StatusChanger generateLobbyMessage(
             String lobbyName,
             User source,
             String message
     ) {
         OnlinePlayer player = onlinePlayersById.get(source.id);
 
-        MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
+        MutableComponent msg = Component.literal(message).withStyle(source.id == self.id ? ChatFormatting.GRAY : ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("~")
@@ -1186,25 +1406,33 @@ public class SocialSdkIntegration {
                 .append("] ")
                 .append(msg);
 
-        if(messageId != 0) {
-            refs.put(messageId, new MessageRef(root, msg));
-        }
+        MessageRef ref = new MessageRef(root, msg, source.id == self.id ? MessageStatus.SENT : MessageStatus.CONFIRMED);
+        StatusChanger changer = (successful, messageId) -> {
+            if(source.id == self.id) {
+                ref.changeStatus(successful ? MessageStatus.CONFIRMED : MessageStatus.BROKEN);
+            }
+
+            if(successful) {
+                refs.put(messageId, ref);
+            }
+        };
 
         Minecraft.getInstance().gui.getChat().addMessage(
                 root,
                 null,
                 null
         );
+
+        return changer;
     }
 
-    public void generateMainLobbyMessage(
-            long messageId,
+    public StatusChanger generateMainLobbyMessage(
             User source,
             String message
     ) {
         OnlinePlayer player = onlinePlayersById.get(source.id);
 
-        MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
+        MutableComponent msg = Component.literal(message).withStyle(source.id == self.id ? ChatFormatting.GRAY : ChatFormatting.WHITE);
         MutableComponent root = Component.empty()
                 .withStyle(ChatFormatting.GRAY)
                 .append("[")
@@ -1215,15 +1443,24 @@ public class SocialSdkIntegration {
                 .append("] ")
                 .append(msg);
 
-        if(messageId != 0) {
-            refs.put(messageId, new MessageRef(root, msg));
-        }
+        MessageRef ref = new MessageRef(root, msg, source.id == self.id ? MessageStatus.SENT : MessageStatus.CONFIRMED);
+        StatusChanger changer = (successful, messageId) -> {
+            if(source.id == self.id) {
+                ref.changeStatus(successful ? MessageStatus.CONFIRMED : MessageStatus.BROKEN);
+            }
+
+            if(successful) {
+                refs.put(messageId, ref);
+            }
+        };
 
         Minecraft.getInstance().gui.getChat().addMessage(
                 root,
                 null,
                 null
         );
+
+        return changer;
     }
 
     public void generatePrebuiltMessage(
@@ -1238,7 +1475,7 @@ public class SocialSdkIntegration {
                 .append(msg);
 
         if(messageId != 0) {
-            refs.put(messageId, new MessageRef(root, msg));
+            refs.put(messageId, new MessageRef(root, msg, MessageStatus.CONFIRMED));
         }
 
         Minecraft.getInstance().gui.getChat().addMessage(
