@@ -7,10 +7,7 @@ import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.*;
 import net.derfruhling.minecraft.ubercord.*;
 import net.derfruhling.minecraft.ubercord.gui.*;
-import net.derfruhling.minecraft.ubercord.packets.JoinLobby;
-import net.derfruhling.minecraft.ubercord.packets.NotifyAboutUserId;
-import net.derfruhling.minecraft.ubercord.packets.RequestLobbyId;
-import net.derfruhling.minecraft.ubercord.packets.SetUserIdPacket;
+import net.derfruhling.minecraft.ubercord.packets.*;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.GuiMessageTag;
@@ -396,7 +393,18 @@ public class SocialSdkIntegration {
         Map<String, String> meta = lobby.getMetadata();
         String name = meta.get("name");
 
-        if(meta.containsKey("ups-managed") && meta.get("ups-managed").equals("true")) {
+        if(meta.containsKey("server-managed") && meta.get("server-managed").equals("true")) {
+            MutableComponent activity = Component.translatable("ubercord.lobby.leaving", name)
+                    .withStyle(ChatFormatting.GRAY);
+            MutableComponent status = Component.translatable("ubercord.lobby.status.waiting_for_server")
+                    .withStyle(ChatFormatting.DARK_GRAY);
+            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            channelTickers.put(name, lobbyStatus);
+
+            // can't leave here, need to interact with the server
+            assert accessToken != null;
+            NetworkManager.sendToServer(new LeaveLobby(lobbyId));
+        } else if(meta.containsKey("ups-managed") && meta.get("ups-managed").equals("true")) {
             MutableComponent activity = Component.translatable("ubercord.lobby.leaving", name)
                     .withStyle(ChatFormatting.GRAY);
             MutableComponent status = Component.translatable("ubercord.lobby.status.waiting_for_server")
@@ -516,7 +524,7 @@ public class SocialSdkIntegration {
         }
     }
 
-    void joinServerLobby(long lobbyId, String name) {
+    void joinServerLobby(long lobbyId, String name, boolean usingCustomService) {
         if(lobbyId == 0) {
             generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.not_found_error"));
 
@@ -528,24 +536,29 @@ public class SocialSdkIntegration {
             return;
         }
 
-        channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.authorizing").withStyle(ChatFormatting.DARK_GRAY));
+        if(!usingCustomService) {
+            managedChannelService.requestPermissionsToken(lobbyId, ManagedChannelKind.SERVER, accessToken)
+                    .thenAccept(s -> {
+                        NetworkManager.sendToServer(new JoinLobby(lobbyId, s));
+                        channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.waiting_for_server").withStyle(ChatFormatting.DARK_GRAY));
+                    })
+                    .exceptionally(e -> {
+                        log.error("Failed to join server lobby {} named {}", lobbyId, name, e);
+                        generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.provisional_service_failed").withStyle(ChatFormatting.RED));
 
-        managedChannelService.requestPermissionsToken(lobbyId, ManagedChannelKind.SERVER, accessToken)
-                .thenAccept(s -> {
-                    NetworkManager.sendToServer(new JoinLobby(lobbyId, s));
-                    channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.waiting_for_server").withStyle(ChatFormatting.DARK_GRAY));
-                })
-                .exceptionally(e -> {
-                    log.error("Failed to join server lobby {} named {}", lobbyId, name, e);
-                    generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.provisional_service_failed").withStyle(ChatFormatting.RED));
+                        synchronized (channelTickers) {
+                            LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                            if(ticker != null) ticker.fail();
+                        }
 
-                    synchronized (channelTickers) {
-                        LobbyStatusMessageTicker ticker = channelTickers.remove(name);
-                        if(ticker != null) ticker.fail();
-                    }
+                        return null;
+                    });
 
-                    return null;
-                });
+            channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.authorizing").withStyle(ChatFormatting.DARK_GRAY));
+        } else {
+            NetworkManager.sendToServer(new JoinLobby(lobbyId, "$custom-in-use$"));
+            channelTickers.get(name).updateStatus(Component.translatable("ubercord.lobby.status.waiting_for_server").withStyle(ChatFormatting.DARK_GRAY));
+        }
     }
 
     public void joinGlobalLobby(String name) {

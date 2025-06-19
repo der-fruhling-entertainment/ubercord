@@ -6,7 +6,6 @@ import com.auth0.jwk.JwkProviderBuilder;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.auth0.jwt.interfaces.RSAKeyProvider;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.PlayerEvent;
@@ -15,6 +14,7 @@ import net.derfruhling.minecraft.ubercord.client.ProvisionalServiceDownException
 import net.derfruhling.minecraft.ubercord.packets.*;
 import net.derfruhling.minecraft.ubercord.server.ServerConfig;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -95,9 +95,16 @@ public final class Ubercord {
     }
 
     public static void init() {
-        LifecycleEvent.SERVER_BEFORE_START.register(server -> {
-            serverConfig = ServerConfig.loadOrDefault(server);
-            serverManagedChannelService = new ManagedChannelService();
+        LifecycleEvent.SERVER_BEFORE_START.register(Ubercord::updateServerConfig);
+
+        PlayerEvent.PLAYER_QUIT.register(player -> {
+            DiscordIdContainer container = (DiscordIdContainer) player;
+            long userId = container.getUserId();
+
+            if(serverManagedChannelService instanceof CustomManagedChannelService) {
+                ((CustomManagedChannelService) serverManagedChannelService).getOwnedChannelsContaining(userId)
+                        .forEach(ownedChannel -> serverManagedChannelService.removeUserFromChannel(ownedChannel, userId));
+            }
         });
 
         LifecycleEvent.SERVER_STOPPED.register(server -> {
@@ -159,18 +166,18 @@ public final class Ubercord {
                             serverManagedChannelService.createServerChannel(value.lobbyName())
                                     .thenAccept(ownedChannel -> {
                                         log.info("Server channel {} has ID {}", value.lobbyName(), ownedChannel.lobbyId());
-                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(ownedChannel.lobbyId(), value.lobbyName()));
+                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(ownedChannel.lobbyId(), value.lobbyName(), serverManagedChannelService instanceof CustomManagedChannelService));
                                     })
                                     .exceptionally(throwable -> {
                                         log.error("Failed to create channel {} in response to user trying to join it", value.lobbyName(), throwable);
-                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(0, value.lobbyName()));
+                                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(0, value.lobbyName(), serverManagedChannelService instanceof CustomManagedChannelService));
                                         return null;
                                     });
                         } catch (ChannelExistsException e) {
                             throw new RuntimeException(e);
                         }
                     } else {
-                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(channel == null ? 0 : channel.lobbyId(), value.lobbyName()));
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyIdFound(channel == null ? 0 : channel.lobbyId(), value.lobbyName(), serverManagedChannelService instanceof CustomManagedChannelService));
                     }
                 }
         );
@@ -188,7 +195,7 @@ public final class Ubercord {
                     OwnedChannel ownedChannel = serverManagedChannelService.getOwnedChannel(value.lobbyId());
 
                     if(ownedChannel == null) {
-                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(value.lobbyId(), "<not found; maybe try again?>"));
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyError(value.lobbyId(), "<not found; maybe try again?>"));
                         return;
                     }
 
@@ -196,11 +203,32 @@ public final class Ubercord {
                         serverManagedChannelService.addUserToChannel(ownedChannel, container.getUserId(), value.permissionToken(), context.getPlayer().hasPermissions(3))
                                 .exceptionally(throwable -> {
                                     log.error("Failed to authorize and add user {} to lobby {}", container.getUserId(), ownedChannel.lobbyId(), throwable);
-                                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(ownedChannel.lobbyId(), ownedChannel.name()));
+                                    NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyError(ownedChannel.lobbyId(), ownedChannel.name()));
                                     return null;
                                 });
                     } else {
-                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyJoinFailure(value.lobbyId(), ownedChannel.name()));
+                        NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyError(value.lobbyId(), ownedChannel.name()));
+                    }
+                }
+        );
+        
+        NetworkManager.registerReceiver(
+                NetworkManager.c2s(),
+                LeaveLobby.TYPE,
+                LeaveLobby.STREAM_CODEC,
+                (value, context) -> {
+                    assert serverManagedChannelService != null;
+
+                    if (serverManagedChannelService instanceof CustomManagedChannelService) {
+                        DiscordIdContainer container = (DiscordIdContainer) context.getPlayer();
+                        OwnedChannel ownedChannel = serverManagedChannelService.getOwnedChannel(value.lobbyId());
+                        
+                        if(ownedChannel == null) {
+                            NetworkManager.sendToPlayer((ServerPlayer) context.getPlayer(), new LobbyError(value.lobbyId(), "<not found; maybe try again?>"));
+                            return;
+                        }
+                        
+                        serverManagedChannelService.removeUserFromChannel(ownedChannel, container.getUserId());
                     }
                 }
         );
@@ -236,6 +264,13 @@ public final class Ubercord {
                 );
             }
         });
+    }
+
+    private static synchronized void updateServerConfig(MinecraftServer server) {
+        serverConfig = ServerConfig.loadOrDefault(server);
+        serverManagedChannelService = serverConfig.botToken() != null
+            ? new CustomManagedChannelService(serverConfig.botToken())
+            : new ManagedChannelService();
     }
 
     private static boolean isPermissionJwtValid(JoinLobby value, DiscordIdContainer container) {

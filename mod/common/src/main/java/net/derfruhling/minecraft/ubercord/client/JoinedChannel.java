@@ -13,14 +13,18 @@ public record JoinedChannel(
         ManagedChannelKind kind,
         String name,
         @Nullable String secret,
-        Lobby lobby
+        Lobby lobby,
+        boolean isCustomChannelServiceManaged
 ) {
     private JoinedChannel(Lobby lobby, Map<String, String> meta, @Nullable String secret) {
-        this(lobby.id,
+        this(
+                lobby.id,
                 ManagedChannelKind.valueOf(meta.getOrDefault("kind", "global").toUpperCase(Locale.ROOT)),
                 meta.get("name"),
                 secret == null ? meta.get("secret") : secret,
-                lobby);
+                lobby,
+                meta.getOrDefault("server-managed", "false").equals("true")
+        );
     }
 
     public JoinedChannel(Lobby lobby) {

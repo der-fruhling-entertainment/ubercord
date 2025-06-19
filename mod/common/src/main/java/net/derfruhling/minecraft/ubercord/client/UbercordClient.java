@@ -77,14 +77,14 @@ public final class UbercordClient {
                 LobbyIdFound.TYPE,
                 LobbyIdFound.STREAM_CODEC,
                 (value, context) -> {
-                    integration.joinServerLobby(value.lobbyId(), value.name());
+                    integration.joinServerLobby(value.lobbyId(), value.name(), value.isUsingCustomService());
                 }
         );
 
         NetworkManager.registerReceiver(
                 NetworkManager.s2c(),
-                LobbyJoinFailure.TYPE,
-                LobbyJoinFailure.STREAM_CODEC,
+                LobbyError.TYPE,
+                LobbyError.STREAM_CODEC,
                 (value, context) -> {
                     integration.lobbyJoinFailed(value.lobbyName());
                 }
