@@ -14,6 +14,7 @@ public final class FriendContext implements HandlesNewMessage {
     private Avatar avatar;
     final ChatMessageListWidget messages;
     private final List<ChatMessage> chatMessages = new ArrayList<>();
+    private boolean isRead = true;
     private final FriendListScreen friendListScreen;
 
     public FriendContext(User targetUser, Avatar avatar, FriendListScreen screen) {
@@ -28,7 +29,10 @@ public final class FriendContext implements HandlesNewMessage {
     public void onNewUserMessage(User user, Message message) {
         if(user.id != targetUser.id) return;
 
-        ChatMessage chatMessage = new ChatMessage(friendListScreen, this, message);
+        ChatMessage chatMessage = new ChatMessage(friendListScreen, this, message, friendListScreen.currentContext == this);
+        if(!chatMessage.isRead()) {
+            isRead = false;
+        }
         chatMessages.add(chatMessage);
         messages.addMessage(chatMessage);
     }
@@ -43,6 +47,10 @@ public final class FriendContext implements HandlesNewMessage {
     }
 
     void addMessage(ChatMessage message) {
+        if(!message.isRead()) {
+            isRead = false;
+        }
+
         chatMessages.add(message);
         messages.addMessage(message);
     }
@@ -74,5 +82,13 @@ public final class FriendContext implements HandlesNewMessage {
 
     public void reloadAvatar() {
         avatar = Avatar.forUser(Minecraft.getInstance(), targetUser);
+    }
+
+    public boolean isRead() {
+        return isRead;
+    }
+
+    void setRead(boolean read) {
+        isRead = read;
     }
 }

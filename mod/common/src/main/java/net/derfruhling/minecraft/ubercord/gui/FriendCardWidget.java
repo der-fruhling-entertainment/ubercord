@@ -11,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +48,7 @@ public class FriendCardWidget extends AbstractSpruceWidget {
             RenderSystem.disableBlend();
         }
 
-        graphics.drawString(client.font, user.getDisplayName(), x + 32, y + 4, 0xffffffff);
+        graphics.drawString(client.font, Component.literal(user.getDisplayName()).withStyle(Style.EMPTY.withBold(!context.isRead())), x + 32, y + 4, 0xffffffff);
         graphics.drawString(client.font, switch(user.getRelationship().discordType()) {
             case Blocked -> Component.empty().append(Badge.BLOCKED_BADGE.create()).append("Blocked");
             case PendingIncoming -> Component.empty().append(Badge.INCOMING_FRIEND_REQUEST.create()).append("Friend request");

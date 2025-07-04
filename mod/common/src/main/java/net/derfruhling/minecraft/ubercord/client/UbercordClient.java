@@ -30,6 +30,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.resources.ResourceLocation;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +44,7 @@ import static dev.architectury.event.events.client.ClientCommandRegistrationEven
 import static dev.architectury.event.events.client.ClientCommandRegistrationEvent.argument;
 
 public final class UbercordClient {
+    private static final Logger log = LogManager.getLogger(UbercordClient.class);
     private static SocialSdkIntegration integration;
     private static boolean clothConfigPresent = false;
 
@@ -60,6 +64,11 @@ public final class UbercordClient {
 
     public static void init() {
         SocialSdk.initialize(new ClasspathLoader());
+        SocialSdk.setLogCallback((level, s) -> {
+            if(level.isMoreSpecificThan(Level.INFO)) {
+                log.log(level, s);
+            }
+        });
 
         integration = new SocialSdkIntegration();
 

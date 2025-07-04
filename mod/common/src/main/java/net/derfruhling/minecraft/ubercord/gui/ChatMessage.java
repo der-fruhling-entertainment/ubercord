@@ -26,6 +26,7 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
     private final FriendContext context;
     private final long author;
     private boolean shouldRenderAuthorInfo = false;
+    private boolean isRead;
     private int standardMessageHeight;
 
     private enum Status {
@@ -36,7 +37,7 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
 
     private Status status;
 
-    private ChatMessage(@Nullable Message messageHandle, Avatar avatar, @NotNull Component displayName, @NotNull Component message, @Nullable Component metadata, FriendListScreen screen, FriendContext context, long author) {
+    private ChatMessage(@Nullable Message messageHandle, Avatar avatar, @NotNull Component displayName, @NotNull Component message, @Nullable Component metadata, FriendListScreen screen, FriendContext context, long author, boolean isRead) {
         this.messageHandle = messageHandle;
         this.avatar = avatar;
         this.displayName = displayName;
@@ -45,11 +46,12 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
         this.screen = screen;
         this.context = context;
         this.author = author;
+        this.isRead = isRead;
         this.status = Status.UNCONFIRMED;
         performResize(screen);
     }
 
-    public ChatMessage(FriendListScreen screen, FriendContext context, Message message) {
+    public ChatMessage(FriendListScreen screen, FriendContext context, Message message, boolean isRead) {
         avatar = context.getAvatar();
         // TODO IGN
         displayName = Component.empty()
@@ -62,6 +64,7 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
         this.screen = screen;
         this.context = context;
         this.author = message.getAuthorId();
+        this.isRead = isRead;
 
         if(message.getAdditionalContent() != null) {
             Message.AdditionalContent content = message.getAdditionalContent();
@@ -96,7 +99,8 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
                 null,
                 screen,
                 context,
-                i.self.id
+                i.self.id,
+                true
         );
     }
 
@@ -173,5 +177,13 @@ public class ChatMessage extends SpruceEntryListWidget.Entry {
             metadata = Component.literal("> Message failed to send: " + result.message());
             performResize(screen);
         }
+    }
+
+    void markRead() {
+        isRead = true;
+    }
+
+    public boolean isRead() {
+        return isRead;
     }
 }

@@ -29,7 +29,7 @@ public record ServerConfig(
     public boolean permitsCreatingChannel(String name) {
         return switch (channelStrategy == null ? ChannelStrategy.LISTED_ON_DEMAND : channelStrategy) {
             case NONE -> false;
-            case LISTED_ON_DEMAND -> Arrays.asList(channels).contains(name);
+            case LISTED_ON_DEMAND -> channels != null && Arrays.asList(channels).contains(name);
             case ANY_ON_DEMAND -> true;
         };
     }

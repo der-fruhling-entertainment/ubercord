@@ -27,7 +27,7 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
     private SideFriendList friendList = null;
     private final SpruceLabelWidget title = new SpruceLabelWidget(Position.of(4, 4), Component.literal("übercord").withStyle(Style.EMPTY.withBold(true).withItalic(true)), 125);
     private final List<FriendContext> contexts = new LinkedList<>();
-    private FriendContext currentContext = null;
+    FriendContext currentContext = null;
     private SpruceTextAreaWidget textInput = null;
 
     public final long targetUserId;
@@ -52,6 +52,12 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
     @Override
     protected void init() {
         super.init();
+
+        if(currentContext != null) {
+            for (ChatMessage message : currentContext.messages) {
+                message.markRead();
+            }
+        }
 
         if(friendList == null) {
             reallyReloadRelationships();
@@ -160,7 +166,12 @@ public final class FriendListScreen extends SpruceScreen implements HandlesNewMe
     }
 
     void handleSwitchUserContext(FriendContext newContext) {
+        for (ChatMessage message : newContext.messages) {
+            message.markRead();
+        }
+
         currentContext = newContext;
+        currentContext.setRead(true);
         currentContext.performResize(this);
         rebuildWidgets();
     }

@@ -1306,7 +1306,7 @@ public class SocialSdkIntegration {
             String message
     ) {
         Minecraft client = Minecraft.getInstance();
-        if(client.screen == null) {
+        if(!(client.screen instanceof HandlesNewMessage)) {
             OnlinePlayer player = onlinePlayersById.get(source.id);
 
             MutableComponent msg = Component.literal(message).withStyle(ChatFormatting.WHITE);
@@ -1326,7 +1326,7 @@ public class SocialSdkIntegration {
                             .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/dm " + source.id + " "))));
 
             if(messageId != 0) {
-                refs.put(messageId, new MessageRef(msg, root, MessageStatus.CONFIRMED));
+                refs.put(messageId, new MessageRef(root, msg, MessageStatus.CONFIRMED));
             }
 
             client.gui.getChat().addMessage(
@@ -1340,7 +1340,7 @@ public class SocialSdkIntegration {
                 Message m = getClient().getMessage(messageId);
                 friendsListScreen.onNewUserMessage(source, m);
             }
-        } else if(client.screen instanceof HandlesNewMessage) {
+        } else {
             Message m = getClient().getMessage(messageId);
             ((HandlesNewMessage) client.screen).onNewUserMessage(source, m);
         }
@@ -1372,7 +1372,7 @@ public class SocialSdkIntegration {
                 .append("] ")
                 .append(msg);
 
-        MessageRef ref = new MessageRef(msg, root, MessageStatus.SENT);
+        MessageRef ref = new MessageRef(root, msg, MessageStatus.SENT);
         StatusChanger changer = (successful, messageId) -> {
             if(successful) {
                 ref.changeStatus(MessageStatus.CONFIRMED);
