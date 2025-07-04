@@ -5,11 +5,8 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import dev.architectury.event.events.client.ClientCommandRegistrationEvent;
+import dev.architectury.event.events.client.*;
 import dev.architectury.event.events.client.ClientCommandRegistrationEvent.ClientCommandSourceStack;
-import dev.architectury.event.events.client.ClientLifecycleEvent;
-import dev.architectury.event.events.client.ClientPlayerEvent;
-import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.networking.NetworkManager;
 import dev.architectury.registry.client.keymappings.KeyMappingRegistry;
 import net.derfruhling.discord.socialsdk4j.ClientResult;
@@ -24,6 +21,7 @@ import net.derfruhling.minecraft.ubercord.packets.*;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -35,8 +33,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static com.mojang.brigadier.arguments.LongArgumentType.longArg;
 import static com.mojang.brigadier.arguments.StringArgumentType.*;
@@ -47,6 +48,31 @@ public final class UbercordClient {
     private static final Logger log = LogManager.getLogger(UbercordClient.class);
     private static SocialSdkIntegration integration;
     private static boolean clothConfigPresent = false;
+    private static final StatusMessage statusTicker = new StatusMessage();
+    private static boolean canAddBeforeTitleScreens = true;
+    private static final List<Function<Runnable, Screen>> screensToShowBeforeTitle = new LinkedList<>();
+
+    public static StatusMessage getStatus() {
+        return statusTicker;
+    }
+
+    public static void show(Function<Runnable, Screen> screen) {
+        if(canAddBeforeTitleScreens) {
+            screensToShowBeforeTitle.add(screen);
+        } else {
+            Minecraft instance = Minecraft.getInstance();
+            Screen orig = instance.screen;
+            instance.setScreen(screen.apply(() -> instance.setScreen(orig)));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Function<Runnable, Screen>[] consumeScreensToShowBeforeTitle() {
+        var array = screensToShowBeforeTitle.toArray(new Function[0]);
+        screensToShowBeforeTitle.clear();
+        canAddBeforeTitleScreens = false;
+        return array;
+    }
 
     static FriendListScreen friendListScreen = null;
     

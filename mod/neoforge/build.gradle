@@ -41,7 +41,11 @@ dependencies {
     neoForge "net.neoforged:neoforge:$rootProject.neoforge_version"
 
     modImplementation "dev.architectury:architectury-neoforge:$rootProject.architectury_api_version"
-    include(modImplementation "dev.lambdaurora:spruceui:$rootProject.spruceui_version")
+    include(modImplementation("dev.lambdaurora:spruceui:$rootProject.spruceui_version") {
+        capabilities {
+            requireCapability("dev.lambdaurora:spruceui-mojmap")
+        }
+    })
 
     modApi("me.shedaniel.cloth:cloth-config-neoforge:15.0.140")
 
@@ -69,6 +73,10 @@ dependencies {
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'linux'
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'windows'
     shadowBundle group: 'net.derfruhling.discord', name: 'socialsdk', classifier: 'macos'
+}
+
+shadowJar {
+    exclude("javax/**", "com/google/**", "org/checkerframework/**")
 }
 
 processResources {

@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class SuddenInviteScreen extends SpruceScreen {
     private static final Logger log = LogManager.getLogger(SuddenInviteScreen.class);
-    protected final Screen parent;
+    private final Runnable returnToParent;
     protected final ActivityInvite invite;
     protected final User user;
 
@@ -30,9 +30,9 @@ public class SuddenInviteScreen extends SpruceScreen {
         return Component.translatable("ubercord.invite.screen.sender", displayName);
     }
 
-    public SuddenInviteScreen(Screen parent, ActivityInvite invite) {
+    public SuddenInviteScreen(Runnable returnToParent, ActivityInvite invite) {
         super(Component.translatable("ubercord.invite.screen.title"));
-        this.parent = parent;
+        this.returnToParent = returnToParent;
         this.invite = invite;
         this.user = UbercordClient.get().getClient().getUser(invite.senderId());
     }
@@ -64,6 +64,6 @@ public class SuddenInviteScreen extends SpruceScreen {
 
     @Override
     public void onClose() {
-        Minecraft.getInstance().setScreen(parent);
+        returnToParent.run();
     }
 }

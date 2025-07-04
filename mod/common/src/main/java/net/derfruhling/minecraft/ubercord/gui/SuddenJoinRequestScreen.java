@@ -14,7 +14,7 @@ import org.jetbrains.annotations.NotNull;
 public class SuddenJoinRequestScreen extends SuddenInviteScreen {
     private static final Logger log = LogManager.getLogger(SuddenJoinRequestScreen.class);
 
-    public SuddenJoinRequestScreen(Screen parent, ActivityInvite invite) {
+    public SuddenJoinRequestScreen(Runnable parent, ActivityInvite invite) {
         super(parent, invite);
     }
 

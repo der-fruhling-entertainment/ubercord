@@ -3,6 +3,7 @@ package net.derfruhling.minecraft.ubercord.client;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
+import com.mojang.authlib.GameProfile;
 import dev.architectury.networking.NetworkManager;
 import net.derfruhling.discord.socialsdk4j.*;
 import net.derfruhling.minecraft.ubercord.*;
@@ -15,6 +16,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.ConnectScreen;
 import net.minecraft.client.gui.screens.ProgressScreen;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.multiplayer.*;
@@ -47,7 +49,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 
 public class SocialSdkIntegration {
@@ -174,7 +175,7 @@ public class SocialSdkIntegration {
                     }
 
                     synchronized (channelTickers) {
-                        LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                        StatusMessageRefTicker ticker = channelTickers.remove(name);
                         if(ticker != null) ticker.succeed();
                     }
                 } else {
@@ -350,7 +351,7 @@ public class SocialSdkIntegration {
                                                 .withColor(ChatFormatting.GREEN))),
                                 invite.messageId());
                     } else {
-                        Minecraft.getInstance().setScreen(new SuddenInviteScreen(Minecraft.getInstance().screen, invite));
+                        UbercordClient.show(r -> new SuddenInviteScreen(r, invite));
                     }
                 }
 
@@ -371,7 +372,7 @@ public class SocialSdkIntegration {
                                                         .withColor(ChatFormatting.GREEN))),
                                 invite.messageId());
                     } else {
-                        Minecraft.getInstance().setScreen(new SuddenJoinRequestScreen(Minecraft.getInstance().screen, invite));
+                        UbercordClient.show(r -> new SuddenJoinRequestScreen(r, invite));
                     }
                 }
             }
@@ -398,7 +399,7 @@ public class SocialSdkIntegration {
                     .withStyle(ChatFormatting.GRAY);
             MutableComponent status = Component.translatable("ubercord.lobby.status.waiting_for_server")
                     .withStyle(ChatFormatting.DARK_GRAY);
-            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            StatusMessageRefTicker lobbyStatus = StatusMessageRefTicker.create(activity, status);
             channelTickers.put(name, lobbyStatus);
 
             // can't leave here, need to interact with the server
@@ -409,7 +410,7 @@ public class SocialSdkIntegration {
                     .withStyle(ChatFormatting.GRAY);
             MutableComponent status = Component.translatable("ubercord.lobby.status.waiting_for_server")
                     .withStyle(ChatFormatting.DARK_GRAY);
-            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            StatusMessageRefTicker lobbyStatus = StatusMessageRefTicker.create(activity, status);
             channelTickers.put(name, lobbyStatus);
 
             // can't leave here, need to interact with provisional service
@@ -424,7 +425,7 @@ public class SocialSdkIntegration {
             MutableComponent activity = Component.translatable("ubercord.lobby.leaving", name)
                     .withStyle(ChatFormatting.GRAY);
             MutableComponent status = Component.empty();
-            LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+            StatusMessageRefTicker lobbyStatus = StatusMessageRefTicker.create(activity, status);
             channelTickers.put(name, lobbyStatus);
 
             client.leaveLobby(lobbyId, result -> {
@@ -446,7 +447,7 @@ public class SocialSdkIntegration {
         leaveLobby(Objects.requireNonNull(getJoinedChannel(name)).lobbyId());
     }
 
-    private final HashMap<String, LobbyStatusMessageTicker> channelTickers = new HashMap<>();
+    private final HashMap<String, StatusMessageRefTicker> channelTickers = new HashMap<>();
 
     public void joinLobby(ManagedChannelKind ctx, String name) {
         switch (ctx) {
@@ -454,7 +455,7 @@ public class SocialSdkIntegration {
                 MutableComponent activity = Component.translatable("ubercord.lobby.joining", name)
                         .withStyle(ChatFormatting.GRAY);
                 MutableComponent status = Component.empty();
-                LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+                StatusMessageRefTicker lobbyStatus = StatusMessageRefTicker.create(activity, status);
                 channelTickers.put(name, lobbyStatus);
 
                 joinGlobalLobby(name);
@@ -469,7 +470,7 @@ public class SocialSdkIntegration {
                                 .withStyle(ChatFormatting.GRAY);
                         MutableComponent status = Component.translatable("ubercord.lobby.status.resolving")
                                 .withStyle(ChatFormatting.DARK_GRAY);
-                        LobbyStatusMessageTicker lobbyStatus = LobbyStatusMessageTicker.create(activity, status);
+                        StatusMessageRefTicker lobbyStatus = StatusMessageRefTicker.create(activity, status);
                         channelTickers.put(name, lobbyStatus);
                     }
 
@@ -519,7 +520,7 @@ public class SocialSdkIntegration {
         generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.failure"));
 
         synchronized (channelTickers) {
-            LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+            StatusMessageRefTicker ticker = channelTickers.remove(name);
             if(ticker != null) ticker.fail();
         }
     }
@@ -529,7 +530,7 @@ public class SocialSdkIntegration {
             generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.not_found_error"));
 
             synchronized (channelTickers) {
-                LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                StatusMessageRefTicker ticker = channelTickers.remove(name);
                 if(ticker != null) ticker.fail();
             }
 
@@ -547,7 +548,7 @@ public class SocialSdkIntegration {
                         generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.lobby.provisional_service_failed").withStyle(ChatFormatting.RED));
 
                         synchronized (channelTickers) {
-                            LobbyStatusMessageTicker ticker = channelTickers.remove(name);
+                            StatusMessageRefTicker ticker = channelTickers.remove(name);
                             if(ticker != null) ticker.fail();
                         }
 
@@ -768,18 +769,8 @@ public class SocialSdkIntegration {
                     Cache cache = new Gson().fromJson(text, Cache.class);
 
                     if(!cache.isProvisional) {
-                        client.updateToken(AuthorizationTokenType.Bearer, cache.accessToken, result -> {
-                            if (result.isSuccess()) {
-                                client.connect();
-
-                                this.currentClientId = clientId;
-                                this.chatFeaturesEnabled = true;
-                            } else {
-                                authorizeReal(clientId, true);
-                            }
-                        });
-
-                        this.accessToken = cache.accessToken;
+                        UbercordClient.getStatus().reset(Component.translatable("ubercord.auth.discord.status"), Component.empty());
+                        onTokenGet(clientId, cache.accessToken, cache.refreshToken, false);
                     } else {
                         authorizeProvisional(clientId);
                     }
@@ -825,21 +816,37 @@ public class SocialSdkIntegration {
         Minecraft.getInstance().getToasts().addToast(new SystemToast(SOCIAL_TOAST, title, content));
     }
 
-    private static void generateChatAuthSelection(long clientId) {
-        Minecraft.getInstance().gui.getChat().addMessage(Component
-                .translatable("ubercord.auth.selector.title")
-                .append(Component.translatable("ubercord.auth.selector.discord")
-                        .withStyle(Style.EMPTY
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize discord " + clientId))
-                                .withColor(0x5865F2)
-                                .withUnderlined(true)))
-                .append("\n")
-                .append(Component.translatable("ubercord.auth.selector.provisional")
-                        .withStyle(Style.EMPTY
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize try-provisional " + clientId))
-                                .withColor(ChatFormatting.GRAY)
-                                .withUnderlined(true)))
-        );
+    private void generateChatAuthSelection(long clientId) {
+        if(Minecraft.getInstance().screen == null) {
+            Minecraft.getInstance().gui.getChat().addMessage(Component
+                    .translatable("ubercord.auth.selector.title")
+                    .append(Component.translatable("ubercord.auth.selector.discord")
+                            .withStyle(Style.EMPTY
+                                    .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize discord " + clientId))
+                                    .withColor(0x5865F2)
+                                    .withUnderlined(true)))
+                    .append("\n")
+                    .append(Component.translatable("ubercord.auth.selector.provisional")
+                            .withStyle(Style.EMPTY
+                                    .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chatctl authorize try-provisional " + clientId))
+                                    .withColor(ChatFormatting.GRAY)
+                                    .withUnderlined(true)))
+            );
+        } else {
+            UbercordClient.show(runnable -> new AuthTypeSelectorScreen(runnable) {
+                @Override
+                protected Screen startDiscordFlow(Runnable returnToParent) {
+                    authorizeReal(clientId, clientId != BUILTIN_CLIENT_ID || ENABLE_CHAT_FEATURES_ON_DEFAULT_CLIENT);
+                    return new StatusAwaiterScreen(returnToParent);
+                }
+
+                @Override
+                protected Screen startProvisionalFlow(Runnable returnToParent) {
+                    authorizeProvisional(clientId);
+                    return new StatusAwaiterScreen(returnToParent);
+                }
+            });
+        }
     }
 
     // TODO use provisional merge here as the docs say (keeps it unique with provisional accts)
@@ -848,18 +855,25 @@ public class SocialSdkIntegration {
         CodeVerifier ver = client.createAuthorizationCodeVerifier();
 
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.discord.begin"));
+        UbercordClient.getStatus().reset(Component.translatable("ubercord.auth.discord.status"), Component.translatable("ubercord.auth.discord.authorizing"));
+
         client.authorize(clientId, chatFeaturesEnabled ? getCommunicationsScopes() : Client.PRESENCE_SCOPES, state, ver.challenge(), (result, code, redirectUri) -> {
             if (result.isSuccess()) {
+                UbercordClient.getStatus().setStatusInfo(Component.translatable("ubercord.auth.discord.poking_discord"));
                 client.getToken(clientId, code, ver.verifier(), redirectUri, (result1, accessToken, refreshToken, type, expiresIn, scopes) -> {
                     if (result1.isSuccess()) {
                         onTokenGet(clientId, accessToken, refreshToken, false);
                     } else {
+                        log.error("Failed to poke Discord: {}", result1.message());
                         generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.discord.failed_token", result1.message()));
+                        UbercordClient.getStatus().fail();
                         authorizeProvisional(clientId);
                     }
                 });
             } else {
+                log.error("Failed to authorize with Discord: {}", result.message());
                 generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.discord.failed_auth", result.message()));
+                UbercordClient.getStatus().fail();
                 authorizeProvisional(clientId);
             }
         });
@@ -875,6 +889,7 @@ public class SocialSdkIntegration {
 
     private void onTokenGet(long clientId, String accessToken, String refreshToken, boolean isProvisional) {
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.authorization_successful"));
+        UbercordClient.getStatus().setStatusInfo(Component.translatable("ubercord.auth.common.authorized"));
         Cache cache = new Cache(accessToken, refreshToken, isProvisional);
 
         File cacheDir = new File(Minecraft.getInstance().gameDirectory, "ubercord");
@@ -887,10 +902,12 @@ public class SocialSdkIntegration {
             throw new RuntimeException(e);
         }
 
+        generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.connecting"));
         client.updateToken(AuthorizationTokenType.Bearer, cache.accessToken, result2 -> {
             if (result2.isSuccess()) {
-                generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.connecting"));
                 client.connect();
+                UbercordClient.getStatus().reset(Component.translatable("ubercord.auth.common.done"), Component.empty());
+                UbercordClient.getStatus().succeed();
             } else {
                 generatePrebuiltMessage(Badge.RED_EXCLAIM, Component.translatable("ubercord.auth.update_token_error", result2.message()));
                 if(!isProvisional) authorizeProvisional(clientId);
@@ -950,10 +967,10 @@ public class SocialSdkIntegration {
         }
 
         generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.begin"));
+        UbercordClient.getStatus().reset(Component.translatable("ubercord.auth.provisional.status"), Component.translatable("ubercord.auth.provisional.authorizing"));
         this.clientId = clientId;
 
-        LocalPlayer player = Minecraft.getInstance().player;
-        assert player != null;
+        GameProfile player = Minecraft.getInstance().getGameProfile();
         try {
             Minecraft m = Minecraft.getInstance();
             ProfileKeyPairManager mgr = m.getProfileKeyPairManager();
@@ -972,8 +989,8 @@ public class SocialSdkIntegration {
                     ProfilePublicKey profilePublicKey = profileKeyPair.get().publicKey();
 
                     String bodyText = new Gson().toJson(new ProvisionalRequest(
-                            player.getName().getString(),
-                            player.getUUID(),
+                            player.getName(),
+                            player.getId(),
                             profilePublicKey.data().expiresAt().toEpochMilli()
                     ));
 
@@ -999,16 +1016,19 @@ public class SocialSdkIntegration {
                             .handleAsync((response, throwable1) -> {
                                 if(throwable1 != null) {
                                     generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_throwable", throwable1.getMessage()));
+                                    UbercordClient.getStatus().fail();
                                 } else if(response.statusCode() != 200) {
                                     generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_http", response.statusCode()));
+                                    UbercordClient.getStatus().fail();
                                 } else {
                                     generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.got_token"));
+                                    UbercordClient.getStatus().setStatusInfo(Component.translatable("ubercord.auth.provisional.poking_discord"));
                                     client.getProvisionalToken(clientId, ExternalAuthType.OpenIDConnect, response.body(), (result, accessToken, refreshToken, type, expiresIn, scopes) -> {
                                         if (result.isSuccess()) {
-                                            log.info("scopes: {}", String.join(" ", scopes));
                                             onTokenGet(clientId, accessToken, refreshToken, true);
                                         } else {
                                             generatePrebuiltMessage(Badge.STATUS_MESSAGE, Component.translatable("ubercord.auth.provisional.failed_token", result.message()));
+                                            UbercordClient.getStatus().fail();
                                             generateChatAuthSelection(clientId);
                                         }
                                     });
@@ -1023,6 +1043,10 @@ public class SocialSdkIntegration {
                     throw new RuntimeException(e);
                 }
 
+                return null;
+            }).exceptionally(throwable -> {
+                log.error("An error occurred processing the provisional request", throwable);
+                UbercordClient.getStatus().fail();
                 return null;
             });
         } catch (OfflineException e) {
@@ -1154,150 +1178,6 @@ public class SocialSdkIntegration {
         };
 
         abstract Style style();
-    }
-
-    static class MessageRef {
-        protected final MutableComponent root;
-        protected MutableComponent message;
-        private boolean hasBeenEdited = false;
-        private MessageStatus status;
-
-        public MessageRef(MutableComponent root, MutableComponent message, MessageStatus status) {
-            this.root = root;
-            this.message = message;
-            this.status = status;
-        }
-
-        public synchronized void changeStatus(MessageStatus status) {
-            this.status = status;
-
-            MutableComponent orig = message;
-            message = message.withStyle(status.style());
-
-            root.getSiblings().set(root.getSiblings().indexOf(orig), message);
-            Minecraft.getInstance().gui.getChat().rescaleChat();
-        }
-
-        public synchronized void edit(Function<MutableComponent, MutableComponent> editor) {
-            if(!hasBeenEdited) {
-                root.append(Component.literal(" ")
-                        .append(Component.translatable("ubercord.disclosure.edited"))
-                        .withStyle(Style.EMPTY
-                                .withColor(ChatFormatting.DARK_GRAY)
-                                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("ubercord.disclosure.edited.desc")))));
-                hasBeenEdited = true;
-            }
-
-            MutableComponent orig = message;
-            message = editor.apply(message);
-
-            if(orig != message) {
-                root.getSiblings().set(root.getSiblings().indexOf(orig), message);
-
-                Minecraft.getInstance().gui.getChat().rescaleChat();
-            }
-        }
-
-        public void onDeleted() {
-            if(hasBeenEdited) root.getSiblings().removeLast();
-            root.append(Component.translatable("ubercord.disclosure.deleted")
-                    .withStyle(Style.EMPTY
-                            .withColor(ChatFormatting.DARK_GRAY)
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.translatable("ubercord.disclosure.deleted.desc")))));
-            root.getSiblings().remove(message);
-            Minecraft.getInstance().gui.getChat().rescaleChat();
-        }
-    }
-
-    static class LobbyStatusMessageTicker extends MessageRef {
-        private MutableComponent animation;
-        private static final int ANIMATION_TICK_PERIOD = 3;
-        private static final String[] ANIMATION = new String[] {
-                "54321",
-                "45432",
-                "34543",
-                "23454",
-                "12345",
-                "23454",
-                "34543",
-                "45432"
-        };
-
-        private static int colorForChar(char ch) {
-            return switch(ch) {
-                case '1' -> 0x4184ad;
-                case '2' -> 0x4c9cce;
-                case '3' -> 0x4faae2;
-                case '4' -> 0x5dbaf4;
-                case '5' -> 0xb3e0fc;
-                default -> throw new IllegalStateException("Unexpected value: " + ch);
-            };
-        }
-
-        private static MutableComponent colorAnimation(String message) {
-            MutableComponent component = Component.empty();
-
-            for (char c : message.toCharArray()) {
-                component.append(Component.literal(String.valueOf(c)).withColor(colorForChar(c)));
-            }
-
-            return component.withStyle(Style.EMPTY.withFont(UbercordClient.FONT));
-        }
-
-        private int animationTicksRemaining = 0, animationFrame = -1;
-
-        private LobbyStatusMessageTicker(MutableComponent root, MutableComponent message, MutableComponent animation) {
-            super(root, message, MessageStatus.CONFIRMED);
-            this.animation = animation;
-        }
-
-        public synchronized void updateStatus(MutableComponent newStatus) {
-            root.getSiblings().set(root.getSiblings().indexOf(message), newStatus);
-            message = newStatus;
-            Minecraft.getInstance().gui.getChat().rescaleChat();
-        }
-
-        public void succeed() {
-            commonEndpoint(Component.literal("✔").withStyle(ChatFormatting.GREEN));
-        }
-
-        public void fail() {
-            commonEndpoint(Component.literal("✕").withStyle(ChatFormatting.RED));
-        }
-
-        private synchronized void commonEndpoint(MutableComponent newMessage) {
-            MutableComponent newAnimation = Component.empty();
-            root.getSiblings().set(root.getSiblings().indexOf(animation), newAnimation);
-            animation = newAnimation;
-
-            root.getSiblings().set(root.getSiblings().indexOf(message), newMessage);
-            message = newMessage;
-
-            Minecraft.getInstance().gui.getChat().rescaleChat();
-        }
-
-        public synchronized void tick() {
-            if(animationTicksRemaining-- == 0) {
-                animationTicksRemaining = ANIMATION_TICK_PERIOD;
-                MutableComponent newComponent = colorAnimation(ANIMATION[++animationFrame % ANIMATION.length]);
-                root.getSiblings().set(root.getSiblings().indexOf(animation), newComponent);
-                animation = newComponent;
-                Minecraft.getInstance().gui.getChat().rescaleChat();
-            }
-        }
-
-        public static LobbyStatusMessageTicker create(Component activity, Component status) {
-            MutableComponent statusMut = status.copy();
-            MutableComponent animation = Component.empty();
-            MutableComponent root = activity.copy()
-                    .append(" ")
-                    .append(animation)
-                    .append(" ")
-                    .append(statusMut);
-
-            Minecraft.getInstance().gui.getChat().addMessage(root, null, null);
-            return new LobbyStatusMessageTicker(root, statusMut, animation);
-        }
     }
 
     public void generateDmMessage(
@@ -1504,6 +1384,8 @@ public class SocialSdkIntegration {
             Badge sourceBadge,
             Component component
     ) {
+        if(Minecraft.getInstance().screen != null) return;
+
         MutableComponent root = Component.empty()
                 .append(sourceBadge.create())
                 .append(" ")
